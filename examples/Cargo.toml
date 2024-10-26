@@ -1,0 +1,8 @@
+[package]
+name = "examples"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+derrick = { version = "1.0.0-rc1", path = ".." }
+sqlx = { version = "0.7", features = ["postgres"] }

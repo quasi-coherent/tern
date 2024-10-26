@@ -1,0 +1,10 @@
+[package]
+name = "derrick-macros"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+derrick-backends.workspace = true
+derrick-core.workspace = true
+derrick-derive.workspace = true

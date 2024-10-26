@@ -1,0 +1,26 @@
+[workspace]
+members = ["derrick-backends", "derrick-core", "derrick-derive", "derrick-macros"]
+exclude = ["examples"]
+
+[workspace.package]
+version = "1.0.0-rc1"
+edition = "2021"
+authors = ["Daniel Donohue <daniel.donohue@beyondidentity.com>"]
+
+[package]
+name = "derrick"
+description = "SQL migration tool inspired by refinery."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[workspace.dependencies]
+derrick-core = { version = "=1.0.0-rc1", path = "derrick-core" }
+derrick-backends = { version = "=1.0.0-rc1", path = "derrick-backends" }
+derrick-derive = { version = "=1.0.0-rc1", path = "derrick-derive" }
+derrick-macros = { version = "=1.0.0-rc1", path = "derrick-macros" }
+
+[dependencies]
+derrick-core.workspace = true
+derrick-backends.workspace = true
+derrick-macros.workspace = true
