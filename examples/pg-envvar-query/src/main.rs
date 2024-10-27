@@ -3,7 +3,7 @@ use derrick::sqlx_postgres::SqlxPgMigrate;
 use derrick::types::HistoryTableInfo;
 use derrick::Runner;
 
-use pg_query_env::{migrations, ExampleMigrate, GetEnvVar};
+use pg_envvar_query::{migrations, ExampleMigrate, GetEnvVar};
 
 #[tokio::main]
 async fn main() {

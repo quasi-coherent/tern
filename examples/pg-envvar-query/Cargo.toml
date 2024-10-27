@@ -1,10 +1,10 @@
 [package]
-name = "pg-query-env"
+name = "pg-envvar-query"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "pg-query-env"
+name = "pg-envvar-query"
 path = "src/main.rs"
 
 [dependencies]
