@@ -217,21 +217,9 @@ dependencies = [
 name = "derrick"
 version = "1.0.0-rc1"
 dependencies = [
- "derrick-backends",
  "derrick-core",
  "derrick-macros",
-]
-
-[[package]]
-name = "derrick-backends"
-version = "1.0.0-rc1"
-dependencies = [
- "chrono",
- "derrick-core",
- "futures-core",
- "log",
- "sqlx",
- "thiserror",
+ "derrick-migrate",
 ]
 
 [[package]]
@@ -262,9 +250,21 @@ dependencies = [
 name = "derrick-macros"
 version = "1.0.0-rc1"
 dependencies = [
- "derrick-backends",
  "derrick-core",
  "derrick-derive",
+ "derrick-migrate",
+]
+
+[[package]]
+name = "derrick-migrate"
+version = "1.0.0-rc1"
+dependencies = [
+ "chrono",
+ "derrick-core",
+ "futures-core",
+ "log",
+ "sqlx",
+ "thiserror",
 ]
 
 [[package]]

@@ -15,6 +15,9 @@ pub enum Error {
     /// Error from one migration.
     #[error("error applying migration {1}: {0}")]
     ExecuteMigration(#[source] BoxDynError, i64),
+    /// Error resolving query before migration.
+    #[error("could not build query for migration: {0}")]
+    ResolveQuery(String),
     /// Error resolving migrations from source.
     #[error("could not resolve migrations: {0}")]
     Source(#[from] SourceError),

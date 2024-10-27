@@ -1,0 +1,9 @@
+services:
+  db:
+    image:
+      postgres:14.13-bookworm
+    environment:
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    command: ["postgres", "-c", "log_statement=all"]

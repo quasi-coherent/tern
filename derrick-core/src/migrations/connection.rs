@@ -37,9 +37,10 @@ where
         &'c mut self,
         table: &'a Self::ConnTable,
         applied: &'a AppliedMigration,
-    ) -> BoxFuture<'a, Result<i64, Error>>;
+    ) -> BoxFuture<'a, Result<(), Error>>;
 
-    /// Get the complete migration history.
+    /// Get the full history table but convert the rows
+    /// to the type inhabited by pre-inserted migrations.
     fn select_applied_from<'a, 'c: 'a>(
         &'c mut self,
         table: &'a Self::ConnTable,

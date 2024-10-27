@@ -1,9 +1,6 @@
 use derrick_core::error::Error;
 use derrick_core::prelude::*;
-use derrick_core::reexport::BoxFuture;
-use derrick_core::types::{
-    AppliedMigration, FutureMigration, HistoryTableInfo, Migration, MigrationSource,
-};
+use derrick_core::types::{AppliedMigration, HistoryTableInfo, Migration, MigrationSource};
 use std::borrow::Cow;
 
 /// Migration runner -- it interacts with
@@ -40,12 +37,13 @@ impl<'a> Runner<'a> {
         let latest = Self::last_applied(&applied).unwrap_or_default();
 
         M::validate_source(sources, applied)?;
+        log::info!(current_version:% = latest; "validated migration set");
 
         Ok(latest)
     }
 
     /// Applied the migration set.  Returns the report.
-    pub async fn run<M>(&self, migrate: &mut M) -> Result<Vec<AppliedMigration>, Error>
+    pub async fn run<M>(self, mut migrate: M) -> Result<Vec<AppliedMigration>, Error>
     where
         M: Migrate,
     {
@@ -54,8 +52,8 @@ impl<'a> Runner<'a> {
         log::info!(migrations:? = unapplied, table:% = table.table(); "applying migration set");
 
         let mut applied = Vec::new();
-        for migration in unapplied.into_iter() {
-            let new_applied = migrate.apply(&table, &migration).await?;
+        for migration in unapplied.iter() {
+            let new_applied = migrate.apply(&table, migration).await?;
             applied.push(new_applied);
         }
 

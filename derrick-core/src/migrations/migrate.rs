@@ -6,12 +6,11 @@ use crate::error::Error;
 
 use futures_core::future::BoxFuture;
 
-/// Methods for applying a migration set.
+/// The runtime for applying a migration set.
 ///
-/// Based on configuration, a migration can opt out
-/// of being in a transaction, for instance, concurrent
-/// index creation in postgers cannot be ran in a
-/// transaction.  The default is to run in a transaction.
+/// There are two required methods: `apply_tx` and
+/// `apply_no_tx`.  These do (respectively, do _not_)
+/// run an individual migration within a transaction.
 ///
 /// _Note_: If a migration is not ran in a transaction,
 /// an outcome  where the history table reaches an
@@ -20,14 +19,21 @@ use futures_core::future::BoxFuture;
 /// the history with a new row does not succeed.
 pub trait Migrate
 where
-    Self: MigrateConn<ConnTable = Self::Table> + Send,
+    Self: Send + Sync,
 {
     /// History table to update/interact with.
     type Table: HistoryTable;
 
+    /// Connection to use for migrations.
+    type Conn: MigrateConn<ConnTable = Self::Table>;
+
+    /// Acquire a connection connection.
+    fn acquire(&mut self) -> &mut Self::Conn;
+
     /// Create the history table if it does not exist.
     fn check_history_table(&mut self, table: &Self::Table) -> BoxFuture<'_, Result<(), Error>> {
-        <Self as MigrateConn>::create_if_not_exists(self, table)
+        let conn = self.acquire();
+        conn.create_if_not_exists(table)
     }
 
     /// Get all previously applied migrations.
@@ -35,16 +41,18 @@ where
         &'c mut self,
         table: &'a Self::Table,
     ) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>> {
-        <Self as MigrateConn>::select_applied_from(self, table)
+        let conn = self.acquire();
+        conn.select_applied_from(table)
     }
 
-    /// Insert a newly applied migration returning the version.
+    /// Insert a newly applied migration.
     fn insert_new_applied<'a, 'c: 'a>(
         &'c mut self,
         table: &'a Self::Table,
         applied: &'a AppliedMigration,
-    ) -> BoxFuture<'a, Result<i64, Error>> {
-        <Self as MigrateConn>::insert_into(self, table, applied)
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        let conn = self.acquire();
+        conn.insert_into(table, applied)
     }
 
     /// Enforce rules about source migrations.
@@ -84,7 +92,7 @@ where
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>>;
 }
 
-/// Empty `Validation` implementation
+/// Empty method for `validate_source`.
 #[derive(Clone)]
 pub struct NoValidation;
 

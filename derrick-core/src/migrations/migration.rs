@@ -19,7 +19,7 @@ pub struct Migration {
 }
 
 impl Migration {
-    pub fn new(source: &MigrationSource, query: &MigrationQuery<'_>) -> Self {
+    pub fn new(source: &MigrationSource, query: MigrationQuery) -> Self {
         Self {
             version: source.version,
             description: Cow::Owned(source.description.replace("_", " ")),
