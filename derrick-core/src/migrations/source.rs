@@ -16,61 +16,37 @@ where
     type Runtime: Migrate;
 
     /// Minimum required for Rust migrations.
-    fn build_query(
-        &self,
-        migrate: &mut Self::Runtime,
-    ) -> BoxFuture<'_, Result<MigrationQuery<'_>, Error>>;
+    fn build_query<'a>(
+        &'a self,
+        runtime: &'a mut Self::Runtime,
+    ) -> BoxFuture<'a, Result<MigrationQuery, Error>>;
 
     fn resolve<'a, 'c: 'a>(
         &'c self,
-        migrate: &'c mut Self::Runtime,
+        runtime: &'c mut Self::Runtime,
         source: &'a MigrationSource,
     ) -> BoxFuture<'a, Result<Migration, Error>> {
         Box::pin(async move {
-            let query = self.build_query(migrate).await?;
-            Ok(Migration::new(source, &query))
-        })
-    }
-}
-
-/// A future resolved to the final migration.
-pub struct FutureMigration<'a> {
-    pub version: i64,
-    pub migration: BoxFuture<'a, Result<Migration, Error>>,
-}
-
-impl<'a, 'c: 'a> FutureMigration<'a> {
-    pub fn build<M, Q>(
-        runtime: &'c mut M,
-        builder: &'c Q,
-        source: &'a MigrationSource,
-    ) -> BoxFuture<'a, FutureMigration<'a>>
-    where
-        M: Migrate,
-        Q: QueryBuilder<Runtime = M>,
-    {
-        Box::pin(async move {
-            let version = source.version;
-            let migration = builder.resolve(runtime, source);
-            FutureMigration { version, migration }
+            let query = self.build_query(runtime).await?;
+            Ok(Migration::new(source, query))
         })
     }
 }
 
 /// A query and if it should not run in a transaction.
 #[derive(Clone)]
-pub struct MigrationQuery<'a> {
-    sql: &'a str,
+pub struct MigrationQuery {
+    sql: String,
     no_tx: bool,
 }
 
-impl<'a> MigrationQuery<'a> {
-    pub fn new(sql: &'a str, no_tx: bool) -> Self {
+impl MigrationQuery {
+    pub fn new(sql: String, no_tx: bool) -> Self {
         Self { sql, no_tx }
     }
 
-    pub fn sql(&self) -> &'a str {
-        self.sql
+    pub fn sql(&self) -> &str {
+        &self.sql
     }
 
     pub fn no_tx(&self) -> bool {

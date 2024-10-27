@@ -8,8 +8,8 @@ pub mod reexport {
 
 pub mod types {
     pub use derrick_core::types::{
-        AppliedMigration, FutureMigration, HistoryRow, HistoryTableInfo, Migration,
-        MigrationSource, NoValidation,
+        AppliedMigration, HistoryRow, HistoryTableInfo, Migration, MigrationQuery, MigrationSource,
+        NoValidation,
     };
 
     pub use derrick_backends::migrate::validate::Validate;

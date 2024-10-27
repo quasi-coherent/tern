@@ -1,20 +1,25 @@
 use derrick::prelude::*;
-use derrick::sqlx_postgres::SqlxPgMigrate;
 use derrick::Error;
 use derrick::QueryBuilder;
 
+use crate::ExampleMigrate;
+
 #[derive(QueryBuilder)]
-#[migration(no_transaction)]
-pub struct Unimplemented(SqlxPgMigrate);
+#[migration(no_transaction, runtime = ExampleMigrate)]
+pub struct Unimplemented;
 
-impl Unimplemented {
-    async fn build_query(migrate: &mut SqlxPgMigrate) -> Result<String, Error> {
-        let table = <SqlxPgMigrate as Migrate>::Table::new(&derrick::types::HistoryTableInfo::new(
-            None, None,
-        ));
-        let rows = migrate.get_history_table(&table).await?;
-        let sql = "SELECT 1;".to_string();
+pub async fn build_query(runtime: &mut ExampleMigrate) -> Result<String, Error> {
+    let random = runtime
+        .env
+        .get_var("RANDOM")
+        .expect("could not get `RANDOM` from environment")
+        .parse::<i32>()
+        .expect("could not parse `RANDOM` into `i32`");
+    let sql = format!(
+        "INSERT INTO dmd_test(x, y) VALUES ({}, '{}');",
+        random,
+        "random value".to_string()
+    );
 
-        Ok(sql)
-    }
+    Ok(sql)
 }

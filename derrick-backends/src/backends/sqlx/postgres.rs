@@ -2,7 +2,7 @@ use derrick_core::error::{DatabaseError, Error};
 use derrick_core::prelude::*;
 use derrick_core::reexport::BoxFuture;
 use derrick_core::types::{
-    AppliedMigration, FutureMigration, HistoryRow, HistoryTableInfo, Migration, MigrationSource,
+    AppliedMigration, HistoryRow, HistoryTableInfo, Migration, MigrationSource,
 };
 use log::{debug, info};
 use sqlx::{postgres, Acquire, PgPool, Postgres};
@@ -36,6 +36,11 @@ impl SqlxPgMigrate {
 
 impl Migrate for SqlxPgMigrate {
     type Table = SqlxPgHistoryTable;
+    type Conn = SqlxPgMigrate;
+
+    fn conn(&mut self) -> &mut Self::Conn {
+        self
+    }
 
     fn validate_source(
         source: Vec<MigrationSource>,

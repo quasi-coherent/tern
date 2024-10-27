@@ -22,7 +22,7 @@ pub fn cargo_manifest_dir() -> PathBuf {
 pub struct EmbedInput {
     pub loc: syn::LitStr,
     pub _comma: syn::Token![,],
-    pub migrate: syn::Type,
+    pub runtime: syn::Type,
 }
 
 impl Parse for EmbedInput {
@@ -30,7 +30,7 @@ impl Parse for EmbedInput {
         Ok(Self {
             loc: input.parse()?,
             _comma: input.parse()?,
-            migrate: input.parse()?,
+            runtime: input.parse()?,
         })
     }
 }
@@ -47,17 +47,15 @@ pub struct ParsedSource {
 impl ParsedSource {
     pub fn from_migration_dir(loc: impl AsRef<Path>) -> Result<Vec<ParsedSource>, ParseError> {
         let location = loc.as_ref().canonicalize().map_err(|e| {
-            ParseError::InvalidPath(
+            ParseError::Path(
                 format!("invalid migration path {:?}", loc.as_ref().to_path_buf()),
                 e.to_string(),
             )
         })?;
         let mut sources = fs::read_dir(location)
-            .map_err(|_| {
-                ParseError::InvalidDirectory("could not read migration directory".to_string())
-            })?
+            .map_err(|_| ParseError::Directory("could not read migration directory".to_string()))?
             .filter_map(|entry| entry.ok().map(|e| e.path()))
-            .map(|filepath| Self::parse(filepath))
+            .map(Self::parse)
             .collect::<Result<Vec<_>, _>>()?;
 
         // order asc by version
@@ -68,7 +66,7 @@ impl ParsedSource {
 
     fn parse(filepath: impl AsRef<Path>) -> Result<Self, ParseError> {
         let filepath = filepath.as_ref();
-        let module = filepath.file_stem().ok_or(ParseError::InvalidName(format!(
+        let module = filepath.file_stem().ok_or(ParseError::Name(format!(
             "no filename stem found {:?}",
             filepath.to_str()
         )))?;
@@ -82,19 +80,19 @@ impl ParsedSource {
                 let source_type = captures.get(3)?.as_str();
                 Some((version, description, source_type))
             })
-            .ok_or(ParseError::InvalidName(format!(
+            .ok_or(ParseError::Name(format!(
                 r"format is `^V(\d+)__(\w+)\.(sql|rs)$`, got {:?}",
                 filepath.to_str(),
             )))?;
         let version: i64 = ver
             .parse()
-            .map_err(|_| ParseError::InvalidName("invalid version, expected i64".to_string()))?;
+            .map_err(|_| ParseError::Name("invalid version, expected i64".to_string()))?;
         let source_type = SourceType::from_ext(ext)?;
-        let content = fs::read_to_string(&filepath)
-            .map_err(|e| ParseError::InvalidContent(format!("could not read file {:?}", e)))?;
+        let content = fs::read_to_string(filepath)
+            .map_err(|e| ParseError::Content(format!("could not read file {:?}", e)))?;
         let module = module
             .to_str()
-            .ok_or(ParseError::InvalidContent(
+            .ok_or(ParseError::Content(
                 "utf-8 decoding filename failed".to_string(),
             ))?
             .to_string();
@@ -112,11 +110,11 @@ impl ParsedSource {
 #[allow(unused)]
 #[derive(Debug)]
 pub enum ParseError {
-    InvalidDirectory(String),
-    InvalidPath(String, String),
-    InvalidName(String),
-    InvalidExt(String),
-    InvalidContent(String),
+    Directory(String),
+    Path(String, String),
+    Name(String),
+    Ext(String),
+    Content(String),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -130,7 +128,7 @@ impl SourceType {
         match ext {
             "sql" => Ok(Self::Sql),
             "rs" => Ok(Self::Rust),
-            _ => Err(ParseError::InvalidExt(format!(
+            _ => Err(ParseError::Ext(format!(
                 "got file extension {ext}, expected `sql` or `rs`"
             ))),
         }
