@@ -1,5 +1,5 @@
 [workspace]
-members = ["derrick-backends", "derrick-core", "derrick-derive", "derrick-macros"]
+members = ["derrick-core", "derrick-derive", "derrick-macros", "derrick-migrate"]
 exclude = ["examples"]
 
 [workspace.package]
@@ -16,11 +16,11 @@ authors.workspace = true
 
 [workspace.dependencies]
 derrick-core = { version = "=1.0.0-rc1", path = "derrick-core" }
-derrick-backends = { version = "=1.0.0-rc1", path = "derrick-backends" }
 derrick-derive = { version = "=1.0.0-rc1", path = "derrick-derive" }
 derrick-macros = { version = "=1.0.0-rc1", path = "derrick-macros" }
+derrick-migrate = { version = "=1.0.0-rc1", path = "derrick-migrate" }
 
 [dependencies]
 derrick-core.workspace = true
-derrick-backends.workspace = true
 derrick-macros.workspace = true
+derrick-migrate.workspace = true

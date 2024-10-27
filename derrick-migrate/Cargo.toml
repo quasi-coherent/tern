@@ -1,5 +1,5 @@
 [package]
-name = "derrick-backends"
+name = "derrick-migrate"
 edition.workspace = true
 version.workspace = true
 authors.workspace = true

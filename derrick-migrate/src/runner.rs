@@ -37,6 +37,7 @@ impl<'a> Runner<'a> {
         let latest = Self::last_applied(&applied).unwrap_or_default();
 
         M::validate_source(sources, applied)?;
+        log::info!(current_version:% = latest; "validated migration set");
 
         Ok(latest)
     }

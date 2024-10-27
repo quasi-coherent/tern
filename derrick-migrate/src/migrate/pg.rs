@@ -20,10 +20,9 @@ impl PgHistoryTableInfo {
 CREATE TABLE IF NOT EXISTS {}(
   version bigint PRIMARY KEY,
   description text NOT NULL,
-  applied_at timestamptz NOT NULL DEFAULT now(),
   content text NOT NULL,
-  checksum text NOT NULL,
-  duration_sec bigint NOT NULL
+  duration_sec bigint NOT NULL,
+  applied_at timestamptz NOT NULL DEFAULT now()
 );
 "#,
             name,
@@ -39,10 +38,9 @@ CREATE TABLE IF NOT EXISTS {}(
 SELECT
   version,
   description,
-  applied_at,
   content,
-  checksum,
-  duration_sec
+  duration_sec,
+  applied_at
 FROM
   {}
 ORDER BY

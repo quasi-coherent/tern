@@ -38,7 +38,7 @@ impl Migrate for SqlxPgMigrate {
     type Table = SqlxPgHistoryTable;
     type Conn = SqlxPgMigrate;
 
-    fn conn(&mut self) -> &mut Self::Conn {
+    fn acquire(&mut self) -> &mut Self::Conn {
         self
     }
 
@@ -116,6 +116,10 @@ impl Migrate for SqlxPgMigrate {
                 "inserting migration into history table"
             );
             sqlx::query(&sql)
+                .bind(applied.version)
+                .bind(applied.description.clone())
+                .bind(applied.content.clone())
+                .bind(applied.duration_sec)
                 .execute(&mut *conn)
                 .await
                 .into_error_void()?;
@@ -178,16 +182,20 @@ impl MigrateConn for SqlxPgMigrate {
         &'c mut self,
         table: &'a Self::ConnTable,
         applied: &'a AppliedMigration,
-    ) -> BoxFuture<'a, Result<i64, Error>> {
+    ) -> BoxFuture<'a, Result<(), Error>> {
         let sql = table.insert_into_query(applied);
         debug!(query:% = sql; "running insert query");
         Box::pin(async move {
-            let version: i64 = sqlx::query_scalar(&sql)
-                .fetch_one(self.pool())
+            sqlx::query(&sql)
+                .bind(applied.version)
+                .bind(applied.description.clone())
+                .bind(applied.content.clone())
+                .bind(applied.duration_sec)
+                .execute(self.pool())
                 .await
                 .into_error()?;
 
-            Ok(version)
+            Ok(())
         })
     }
 }
@@ -220,21 +228,15 @@ impl HistoryTable for SqlxPgHistoryTable {
         pg_tbl.select_star_from_query()
     }
 
-    fn insert_into_query(&self, applied: &AppliedMigration) -> String {
-        let mut builder: sqlx::QueryBuilder<'_, Postgres> = sqlx::QueryBuilder::new(format!(
+    fn insert_into_query(&self, _: &AppliedMigration) -> String {
+        let sql = format!(
             "
-INSERT INTO {}(version, description, content, duration_sec) ",
-            self.table()
-        ));
-        let mut sep = builder.separated(", ");
-        sep.push_unseparated(" VALUES (");
-        sep.push_bind(applied.version);
-        sep.push_bind(applied.description.clone());
-        sep.push_bind(applied.content.clone());
-        sep.push_bind(applied.duration_sec);
-        sep.push_unseparated(") RETURNING version;");
+INSERT INTO {}(version, description, content, duration_sec)
+  VALUES ($1, $2, $3, $4);",
+            self.table(),
+        );
 
-        builder.into_sql()
+        sql
     }
 }
 

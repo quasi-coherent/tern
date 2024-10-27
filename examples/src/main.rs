@@ -3,10 +3,12 @@ use derrick::sqlx_postgres::SqlxPgMigrate;
 use derrick::types::HistoryTableInfo;
 use derrick::Runner;
 
-use eg_simple::{migrations, ExampleMigrate, GetEnvVar};
+use pg_query_env::{migrations, ExampleMigrate, GetEnvVar};
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not found");
     let migrate = SqlxPgMigrate::connect(db_url)
         .await

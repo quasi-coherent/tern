@@ -12,12 +12,12 @@ pub mod types {
         NoValidation,
     };
 
-    pub use derrick_backends::migrate::validate::Validate;
+    pub use derrick_migrate::migrate::validate::Validate;
 }
 
-pub use derrick_backends::Runner;
 pub use derrick_core::error::Error;
+pub use derrick_migrate::Runner;
 
-pub use derrick_backends::sqlx_postgres;
+pub use derrick_migrate::sqlx_postgres;
 
 pub use derrick_macros::{self as macros, embed_migrations, QueryBuilder};

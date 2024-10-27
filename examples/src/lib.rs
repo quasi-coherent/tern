@@ -26,7 +26,7 @@ impl Migrate for ExampleMigrate {
     type Table = SqlxPgHistoryTable;
     type Conn = SqlxPgMigrate;
 
-    fn conn(&mut self) -> &mut SqlxPgMigrate {
+    fn acquire(&mut self) -> &mut SqlxPgMigrate {
         &mut self.migrate
     }
 
@@ -35,7 +35,7 @@ impl Migrate for ExampleMigrate {
         table_name: &'a Self::Table,
         migration: &'a Migration,
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>> {
-        let conn = self.conn();
+        let conn = self.acquire();
         conn.apply_no_tx(table_name, migration)
     }
 
@@ -44,7 +44,7 @@ impl Migrate for ExampleMigrate {
         table_name: &'a Self::Table,
         migration: &'a Migration,
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>> {
-        let conn = self.conn();
+        let conn = self.acquire();
         conn.apply_tx(table_name, migration)
     }
 }

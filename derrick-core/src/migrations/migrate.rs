@@ -27,12 +27,12 @@ where
     /// Connection to use for migrations.
     type Conn: MigrateConn<ConnTable = Self::Table>;
 
-    /// Get the connection.
-    fn conn(&mut self) -> &mut Self::Conn;
+    /// Acquire a connection connection.
+    fn acquire(&mut self) -> &mut Self::Conn;
 
     /// Create the history table if it does not exist.
     fn check_history_table(&mut self, table: &Self::Table) -> BoxFuture<'_, Result<(), Error>> {
-        let conn = self.conn();
+        let conn = self.acquire();
         conn.create_if_not_exists(table)
     }
 
@@ -41,17 +41,17 @@ where
         &'c mut self,
         table: &'a Self::Table,
     ) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>> {
-        let conn = self.conn();
+        let conn = self.acquire();
         conn.select_applied_from(table)
     }
 
-    /// Insert a newly applied migration returning the version.
+    /// Insert a newly applied migration.
     fn insert_new_applied<'a, 'c: 'a>(
         &'c mut self,
         table: &'a Self::Table,
         applied: &'a AppliedMigration,
-    ) -> BoxFuture<'a, Result<i64, Error>> {
-        let conn = self.conn();
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        let conn = self.acquire();
         conn.insert_into(table, applied)
     }
 
