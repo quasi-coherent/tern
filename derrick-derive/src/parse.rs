@@ -6,7 +6,6 @@ use std::{
     path::{Path, PathBuf},
     sync::OnceLock,
 };
-use syn::parse::{Parse, ParseStream};
 
 fn filename_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
@@ -18,19 +17,36 @@ pub fn cargo_manifest_dir() -> PathBuf {
     PathBuf::from(manifest_dir)
 }
 
-#[derive(Debug, Clone)]
-pub struct EmbedInput {
+#[derive(Debug)]
+pub struct SourceToken {
+    pub runtime: syn::Ident,
     pub loc: syn::LitStr,
-    pub _comma: syn::Token![,],
-    pub runtime: syn::Type,
 }
 
-impl Parse for EmbedInput {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+impl SourceToken {
+    pub fn new(input: syn::DeriveInput) -> syn::Result<Self> {
+        let runtime = &input.ident;
+        let mut loc_arg = None::<syn::LitStr>;
+        for attr in &input.attrs {
+            if attr.path().is_ident("migration") {
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("path") {
+                        let loc_attr_val: syn::LitStr = meta.value()?.parse()?;
+                        loc_arg = Some(loc_attr_val);
+                    }
+
+                    Ok(())
+                })?
+            }
+        }
+        let loc = loc_arg.ok_or(syn::Error::new(
+            input.ident.span(),
+            "arg `path = migrations/dir/from/crate/root/` is required",
+        ))?;
+
         Ok(Self {
-            loc: input.parse()?,
-            _comma: input.parse()?,
-            runtime: input.parse()?,
+            runtime: runtime.clone(),
+            loc,
         })
     }
 }

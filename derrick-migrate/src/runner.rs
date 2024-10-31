@@ -1,80 +1,114 @@
 use derrick_core::error::Error;
 use derrick_core::prelude::*;
+use derrick_core::reexport::BoxFuture;
 use derrick_core::types::{AppliedMigration, HistoryTableInfo, Migration, MigrationSource};
-use std::borrow::Cow;
 
-/// Migration runner -- it interacts with
-/// methods created by proc macro code that
-/// prepare migration sources or final, unapplied
-/// migration sets.
-pub struct Runner<'a> {
-    table_info: HistoryTableInfo,
-    unapplied: Cow<'a, [Migration]>,
+/// Arguments after CLI startup.
+pub struct RunnerArgs {
+    pub db_url: String,
+    pub table_info: HistoryTableInfo,
 }
 
-impl<'a> Runner<'a> {
-    pub fn new(table_info: HistoryTableInfo) -> Self {
-        Self {
-            table_info,
-            unapplied: Cow::Owned(Vec::new()),
-        }
-    }
-
-    /// Validates a migration set.  Returns the current version.
-    pub async fn ready<M>(
-        &self,
-        migrate: &mut M,
-        sources: Vec<MigrationSource>,
-    ) -> Result<i64, Error>
+/// Describes the main operations when used in
+/// practice.
+///
+/// The derive macro `Runtime` generates
+/// an implementation for anything that implements
+/// `Migrate`.
+pub trait MigrationRuntime
+where
+    Self: Migrate,
+{
+    /// Can initialize from CLI options.
+    fn init(
+        db_url: String,
+        schema: Option<String>,
+        table: Option<String>,
+    ) -> BoxFuture<'static, Result<Self, Error>>
     where
-        M: Migrate,
-    {
-        let table = M::Table::new(&self.table_info);
+        Self: Sized;
 
-        migrate.check_history_table(&table).await?;
+    /// It should own the migration source directory
+    /// parsed into a standard format without needing
+    /// a database connection.
+    fn sources() -> Vec<MigrationSource>;
 
-        let applied = migrate.get_history_table(&table).await?;
-        let latest = Self::last_applied(&applied).unwrap_or_default();
+    /// It should be able to produce a vector of futures
+    /// when given a connection, where the collection is
+    /// the set of migrations that have not been applied.
+    /// `await`ing this is the input to a migration run.
+    fn unapplied<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<Migration>, Error>>;
 
-        M::validate_source(sources, applied)?;
-        log::info!(current_version:% = latest; "validated migration set");
-
-        Ok(latest)
+    /// It can calculate the difference between what is
+    /// in the migration source directory and what is
+    /// applied according to the history table because
+    /// a `Migrate` can.
+    fn applied(&mut self) -> BoxFuture<'_, Result<Vec<AppliedMigration>, Error>> {
+        self.get_all_applied()
     }
 
-    /// Applied the migration set.  Returns the report.
-    pub async fn run<M>(self, mut migrate: M) -> Result<Vec<AppliedMigration>, Error>
-    where
-        M: Migrate,
-    {
-        let table = M::Table::new(&self.table_info);
-        let unapplied = &self.unapplied;
-        log::info!(migrations:? = unapplied, table:% = table.table(); "applying migration set");
+    /// The main method.  It calls the collection of
+    /// future migrations from the source directory, resolves
+    /// them, and then applies them.
+    fn run<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>> {
+        Box::pin(async move {
+            let unapplied = self.unapplied().await?;
+            let mut applied = Vec::new();
 
-        let mut applied = Vec::new();
-        for migration in unapplied.iter() {
-            let new_applied = migrate.apply(&table, migration).await?;
-            applied.push(new_applied);
-        }
-
-        Ok(applied)
-    }
-
-    pub fn set_unapplied(mut self, unapplied: Vec<Migration>) -> Self {
-        self.unapplied = Cow::Owned(unapplied);
-        self
-    }
-
-    fn last_applied(applied: &[AppliedMigration]) -> Option<i64> {
-        let mut latest: Option<i64> = None;
-        for m in applied.iter() {
-            match latest {
-                None => latest = Some(m.version),
-                Some(v) if m.version > v => latest = Some(m.version),
-                _ => (),
+            for migration in unapplied.iter() {
+                let new_applied = self.apply(migration).await?;
+                applied.push(new_applied);
             }
-        }
 
-        latest
+            Ok(applied)
+        })
+    }
+
+    /// This applies a set of migrations provided by
+    /// some method returning a set of unresolved migrations.
+    fn run_with<'a, 'b: 'a, F, M>(
+        &'b mut self,
+        callback: F,
+    ) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>>
+    where
+        M: Migrate,
+        for<'c> F:
+            FnOnce(&'c mut Self) -> BoxFuture<'c, Result<Vec<Migration>, Error>> + Send + Sync + 'b,
+    {
+        Box::pin(async move {
+            let future_migrations = callback(self).await?;
+            let mut applied = Vec::new();
+            for migration in future_migrations.iter() {
+                let new_applied = self.apply(migration).await?;
+                applied.push(new_applied);
+            }
+
+            Ok(applied)
+        })
+    }
+
+    /// It can get the current applied version.
+    fn current_version(&mut self) -> BoxFuture<'_, Result<Option<i64>, Error>> {
+        Box::pin(async move {
+            let applied = self.get_all_applied().await?;
+            let current = applied.iter().fold(None::<i64>, |acc, m| match acc {
+                None => Some(m.version),
+                Some(v) if m.version > v => Some(m.version),
+                _ => acc,
+            });
+
+            Ok(current)
+        })
+    }
+
+    /// It can rely on its `Migrate` implementation to provide
+    /// a validation method.
+    fn validate<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(async move {
+            let sources = Self::sources().clone();
+            let applied = self.applied().await?.clone();
+
+            <Self as Migrate>::validate_source(sources, applied)
+        })
     }
 }

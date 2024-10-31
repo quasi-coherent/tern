@@ -1,4 +1,3 @@
-pub mod connection;
 pub mod history;
 pub mod migrate;
 pub mod migration;

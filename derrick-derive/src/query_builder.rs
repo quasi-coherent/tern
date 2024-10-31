@@ -4,12 +4,13 @@ use syn::{spanned::Spanned, Error, Result};
 
 pub fn expand(input: syn::DeriveInput) -> Result<TokenStream> {
     let token = DeriveToken::new(input)?;
-    let builder_impl = token.quoted_query_builder_impl();
-    let quoted_future_migration_fn = token.quoted_future_migration_fn();
+    let quoted_builder_impl = token.quote_query_builder_impl();
+    let quoted_future_migration_fn = token.quote_future_migration_fn();
 
     let output = quote! {
+        #[allow(unused_extern_crates, clippy::useless_attribute)]
         extern crate derrick as _derrick;
-        #builder_impl
+        #quoted_builder_impl
         #quoted_future_migration_fn
     };
 
@@ -35,7 +36,7 @@ impl DeriveToken {
         })
     }
 
-    fn quoted_query_builder_impl(&self) -> TokenStream {
+    fn quote_query_builder_impl(&self) -> TokenStream {
         let name = &self.name;
         let runtime = &self.runtime;
         let no_tx = &self.no_tx;
@@ -59,7 +60,7 @@ impl DeriveToken {
         output
     }
 
-    fn quoted_future_migration_fn(&self) -> TokenStream {
+    fn quote_future_migration_fn(&self) -> TokenStream {
         let name = &self.name;
         let runtime = &self.runtime;
         let output = quote! {
