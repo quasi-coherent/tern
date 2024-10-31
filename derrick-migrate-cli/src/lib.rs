@@ -33,8 +33,24 @@ where
 
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
-                let applied = runner.applied().await?;
-                println!("{:?}", applied);
+                let applied = runner.get_all_applied().await?;
+                println!("previously applied migrations {:?}", applied);
+
+                Ok(())
+            }
+            MigrateCommand::Validate { connect_opts } => {
+                let db_url = connect_opts.required_db_url()?.to_string();
+                let table_name = connect_opts.history_table;
+                let schema = connect_opts.history_schema;
+
+                let table_info = HistoryTableInfo::default()
+                    .set_table_name_if_some(table_name)
+                    .set_schema_if_some(schema);
+                let history = <R as Migrate>::History::new(&table_info);
+
+                let mut runner = R::new_runner(db_url, history, data).await?;
+
+                runner.validate().await?;
 
                 Ok(())
             }
@@ -57,8 +73,8 @@ where
                     let unapplied = runner.unapplied().await?;
                     println!("unapplied migrations {:?}", unapplied);
                 } else {
-                    let applied = runner.run().await?;
-                    println!("applied migrations {:?}", applied);
+                    let new_applied = runner.run().await?;
+                    println!("newly applied migrations {:?}", new_applied);
                 }
 
                 Ok(())

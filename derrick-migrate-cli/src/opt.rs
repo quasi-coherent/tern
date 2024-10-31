@@ -42,10 +42,17 @@ pub enum MigrateCommand {
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
+    /// Validate this migration source against the migration
+    /// history.
+    Validate {
+        #[clap(flatten)]
+        connect_opts: ConnectOpts,
+    },
     /// Run any available unapplied migrations.
     Run {
         /// List the migrations to be applied without
         /// applying them.
+        #[arg(short, long)]
         dry_run: bool,
         #[clap(flatten)]
         connect_opts: ConnectOpts,
