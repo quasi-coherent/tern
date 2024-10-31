@@ -2,7 +2,6 @@ pub mod error;
 mod migrations;
 
 pub mod prelude {
-    pub use super::migrations::connection::MigrateConn;
     pub use super::migrations::history::HistoryTable;
     pub use super::migrations::migrate::Migrate;
     pub use super::migrations::source::QueryBuilder;

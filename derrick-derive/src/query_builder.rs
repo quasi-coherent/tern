@@ -4,12 +4,13 @@ use syn::{spanned::Spanned, Error, Result};
 
 pub fn expand(input: syn::DeriveInput) -> Result<TokenStream> {
     let token = DeriveToken::new(input)?;
-    let builder_impl = token.quoted_query_builder_impl();
-    let quoted_future_migration_fn = token.quoted_future_migration_fn();
+    let quoted_builder_impl = token.quote_query_builder_impl();
+    let quoted_future_migration_fn = token.quote_future_migration_fn();
 
     let output = quote! {
-        extern crate derrick as _derrick;
-        #builder_impl
+        #[allow(unused_extern_crates, clippy::useless_attribute)]
+        extern crate derrick as ___derrick;
+        #quoted_builder_impl
         #quoted_future_migration_fn
     };
 
@@ -35,22 +36,22 @@ impl DeriveToken {
         })
     }
 
-    fn quoted_query_builder_impl(&self) -> TokenStream {
+    fn quote_query_builder_impl(&self) -> TokenStream {
         let name = &self.name;
         let runtime = &self.runtime;
         let no_tx = &self.no_tx;
         let output = quote! {
-            impl _derrick::macros::QueryBuilder for #name {
+            impl ___derrick::macros::QueryBuilder for #name {
                 type Runtime = #runtime;
 
                 fn build_query<'a>(
                     &'a self,
                     runtime: &'a mut Self::Runtime,
-                ) -> _derrick::macros::BoxFuture<'a, Result<_derrick::macros::MigrationQuery, _derrick::macros::Error>>
+                ) -> ___derrick::macros::BoxFuture<'a, Result<___derrick::macros::MigrationQuery, ___derrick::macros::Error>>
                 {
                     Box::pin(async move {
                         let sql = build_query(runtime).await?;
-                        Ok(_derrick::macros::MigrationQuery::new(sql, #no_tx))
+                        Ok(___derrick::macros::MigrationQuery::new(sql, #no_tx))
                     })
                 }
             }
@@ -59,14 +60,14 @@ impl DeriveToken {
         output
     }
 
-    fn quoted_future_migration_fn(&self) -> TokenStream {
+    fn quote_future_migration_fn(&self) -> TokenStream {
         let name = &self.name;
         let runtime = &self.runtime;
         let output = quote! {
             pub fn future_migration<'a>(
                 runtime: &'a mut #runtime,
-                source: &'a _derrick::macros::MigrationSource,
-            ) -> _derrick::macros::BoxFuture<'a, Result<_derrick::macros::Migration, _derrick::macros::Error>>
+                source: &'a ___derrick::macros::MigrationSource,
+            ) -> ___derrick::macros::BoxFuture<'a, Result<___derrick::macros::Migration, ___derrick::macros::Error>>
             {
                 let query_builder = #name;
                 #name.resolve(runtime, source)

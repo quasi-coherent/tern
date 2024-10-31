@@ -8,6 +8,7 @@ authors.workspace = true
 chrono = { version = "0.4", default-features = false }
 derrick-core.workspace = true
 futures-core = "0.3"
+futures-util = "0.3"
 log = { version = "0.4", features = ["kv"] }
 sqlx = { version = "0.7", features = ["postgres", "chrono"] }
 thiserror = "1.0"

@@ -18,6 +18,8 @@ pub mod types {
 pub use derrick_core::error::Error;
 pub use derrick_migrate::Runner;
 
+pub use derrick_migrate_cli as cli;
+
 pub use derrick_migrate::sqlx_postgres;
 
-pub use derrick_macros::{self as macros, embed_migrations, QueryBuilder};
+pub use derrick_macros::{self as macros, forward_migrate_to_field, QueryBuilder, Runtime};
