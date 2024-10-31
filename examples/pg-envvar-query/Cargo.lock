@@ -1020,7 +1020,9 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 name = "pg-envvar-query"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "derrick",
+ "dotenvy",
  "env_logger",
  "sqlx",
  "tokio",

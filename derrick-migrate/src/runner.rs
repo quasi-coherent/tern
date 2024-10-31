@@ -1,13 +1,7 @@
 use derrick_core::error::Error;
 use derrick_core::prelude::*;
 use derrick_core::reexport::BoxFuture;
-use derrick_core::types::{AppliedMigration, HistoryTableInfo, Migration, MigrationSource};
-
-/// Arguments after CLI startup.
-pub struct RunnerArgs {
-    pub db_url: String,
-    pub table_info: HistoryTableInfo,
-}
+use derrick_core::types::{AppliedMigration, Migration, MigrationSource};
 
 /// Describes the main operations when used in
 /// practice.
@@ -15,19 +9,10 @@ pub struct RunnerArgs {
 /// The derive macro `Runtime` generates
 /// an implementation for anything that implements
 /// `Migrate`.
-pub trait MigrationRuntime
+pub trait Runner
 where
     Self: Migrate,
 {
-    /// Can initialize from CLI options.
-    fn init(
-        db_url: String,
-        schema: Option<String>,
-        table: Option<String>,
-    ) -> BoxFuture<'static, Result<Self, Error>>
-    where
-        Self: Sized;
-
     /// It should own the migration source directory
     /// parsed into a standard format without needing
     /// a database connection.
@@ -38,6 +23,18 @@ where
     /// the set of migrations that have not been applied.
     /// `await`ing this is the input to a migration run.
     fn unapplied<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<Migration>, Error>>;
+
+    /// Lift the underlying `initialize`.
+    fn new_runner(
+        db_url: String,
+        history: <Self as Migrate>::History,
+        data: <Self as Migrate>::Init,
+    ) -> BoxFuture<'static, Result<Self, Error>>
+    where
+        Self: Sized,
+    {
+        <Self as Migrate>::initialize(db_url, history, data)
+    }
 
     /// It can calculate the difference between what is
     /// in the migration source directory and what is

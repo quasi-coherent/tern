@@ -6,7 +6,7 @@ pub struct Opt {
     /// Optional config file.
     /// Not implemented yet.
     #[arg(skip = None)]
-    config: Option<PathBuf>,
+    _config: Option<PathBuf>,
     #[clap(subcommand)]
     pub command: Command,
 }

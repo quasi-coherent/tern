@@ -2,7 +2,7 @@ pub use derrick_core::error::Error;
 pub use derrick_core::prelude::{Migrate, QueryBuilder};
 pub use derrick_core::reexport::BoxFuture;
 pub use derrick_core::types::{AppliedMigration, Migration, MigrationQuery, MigrationSource};
-pub use derrick_migrate::{MigrationRuntime, Runner, RunnerArgs};
+pub use derrick_migrate::Runner;
 
 pub use derrick_derive::{QueryBuilder, Runtime};
 
@@ -10,7 +10,6 @@ pub use derrick_derive::{QueryBuilder, Runtime};
 /// a struct field implements it.  Provides all methods
 /// except `initialize` and the associated type.  Use as in
 /// `forward_migrate_to!(ForwardToType, forward_to_field)`.
-///
 #[macro_export]
 macro_rules! forward_migrate_to_field {
     ($from:ty, $field:ident) => {

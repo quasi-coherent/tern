@@ -4,11 +4,14 @@ mod opt;
 pub use opt::Opt;
 use opt::{Command, MigrateCommand};
 
-use derrick_migrate::MigrationRuntime;
+use derrick_core::prelude::*;
+use derrick_core::types::HistoryTableInfo;
+use derrick_migrate::Runner;
 
-pub async fn cli<R>(opt: Opt) -> anyhow::Result<()>
+pub async fn run<R, I>(opt: Opt, data: I) -> anyhow::Result<()>
 where
-    R: MigrationRuntime,
+    I: Clone,
+    R: Runner + Migrate<Init = I>,
 {
     match opt.command {
         Command::Migrate(migrate) => match migrate.command {
@@ -22,9 +25,15 @@ where
                 let db_url = connect_opts.required_db_url()?.to_string();
                 let table_name = connect_opts.history_table;
                 let schema = connect_opts.history_schema;
-                let mut runtime = R::init(db_url, schema, table_name).await?;
 
-                let applied = runtime.applied().await?;
+                let table_info = HistoryTableInfo::default()
+                    .set_table_name_if_some(table_name)
+                    .set_schema_if_some(schema);
+                let history = <R as Migrate>::History::new(&table_info);
+
+                let mut runner = R::new_runner(db_url, history, data).await?;
+
+                let applied = runner.applied().await?;
                 println!("{:?}", applied);
 
                 Ok(())
@@ -36,13 +45,19 @@ where
                 let db_url = connect_opts.required_db_url()?.to_string();
                 let table_name = connect_opts.history_table;
                 let schema = connect_opts.history_schema;
-                let mut runtime = R::init(db_url, schema, table_name).await?;
+
+                let table_info = HistoryTableInfo::default()
+                    .set_table_name_if_some(table_name)
+                    .set_schema_if_some(schema);
+                let history = <R as Migrate>::History::new(&table_info);
+
+                let mut runner = R::new_runner(db_url, history, data).await?;
 
                 if dry_run {
-                    let unapplied = runtime.unapplied().await?;
+                    let unapplied = runner.unapplied().await?;
                     println!("unapplied migrations {:?}", unapplied);
                 } else {
-                    let applied = runtime.run().await?;
+                    let applied = runner.run().await?;
                     println!("applied migrations {:?}", applied);
                 }
 

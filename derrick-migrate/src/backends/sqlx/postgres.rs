@@ -18,42 +18,13 @@ pub struct SqlxPgMigrate {
     history_table: SqlxPgHistoryTable,
 }
 
-impl SqlxPgMigrate {
-    pub fn new(pool: PgPool, history_table: SqlxPgHistoryTable) -> Self {
-        Self {
-            pool,
-            history_table,
-        }
-    }
-
-    pub fn pool(&self) -> &PgPool {
-        &self.pool
-    }
-
-    pub fn history_table(&self) -> &SqlxPgHistoryTable {
-        &self.history_table
-    }
-}
-
-/// The table managing migration history.
-#[derive(Clone)]
+/// Additional options to create the `Migrate`.
+/// This is minimal in that it only has the history
+/// table.
+#[derive(Debug, Clone)]
 pub struct SqlxPgHistoryTable {
     schema: Option<String>,
     table_name: String,
-}
-
-impl SqlxPgHistoryTable {
-    pub fn new(schema: Option<String>, table_name: String) -> Self {
-        Self { schema, table_name }
-    }
-
-    pub fn schema(&self) -> Option<String> {
-        self.schema.clone()
-    }
-
-    pub fn table_name(&self) -> String {
-        self.table_name.clone()
-    }
 }
 
 impl HistoryTable for SqlxPgHistoryTable {
@@ -93,11 +64,14 @@ INSERT INTO {}(version, description, content, duration_sec)
 }
 
 impl Migrate for SqlxPgMigrate {
-    type MigrateInfo = SqlxPgHistoryTable;
+    type History = SqlxPgHistoryTable;
+    // We don't need anything more to initialize.
+    type Init = ();
 
     fn initialize(
         db_url: String,
-        info: Self::MigrateInfo,
+        history: Self::History,
+        _: Self::Init,
     ) -> BoxFuture<'static, Result<Self, Error>> {
         Box::pin(async move {
             let opts = db_url.parse::<postgres::PgConnectOptions>().into_error()?;
@@ -105,7 +79,7 @@ impl Migrate for SqlxPgMigrate {
                 .connect_with(opts)
                 .await
                 .into_error()?;
-            Ok(Self::new(pool, info))
+            Ok(SqlxPgMigrate::new(pool, history))
         })
     }
 
@@ -240,5 +214,36 @@ impl Migrate for SqlxPgMigrate {
         applied: Vec<AppliedMigration>,
     ) -> Result<(), Error> {
         Validate::run_validation(source, applied)
+    }
+}
+
+impl SqlxPgMigrate {
+    pub fn new(pool: PgPool, history_table: SqlxPgHistoryTable) -> Self {
+        Self {
+            pool,
+            history_table,
+        }
+    }
+
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
+    pub fn history_table(&self) -> &SqlxPgHistoryTable {
+        &self.history_table
+    }
+}
+
+impl SqlxPgHistoryTable {
+    pub fn new(schema: Option<String>, table_name: String) -> Self {
+        Self { schema, table_name }
+    }
+
+    pub fn schema(&self) -> Option<String> {
+        self.schema.clone()
+    }
+
+    pub fn table_name(&self) -> String {
+        self.table_name.clone()
     }
 }

@@ -58,8 +58,8 @@ pub fn expand(input: syn::DeriveInput) -> Result<TokenStream> {
     let quoted_runtime_impl = quote_runtime_impl(runtime, migration_sources, migration_data);
 
     let output = quote! {
-        [allow(unused_extern_crates, clippy::useless_attribute)]
-        extern crate derrick as _derrick;
+        #[allow(unused_extern_crates, clippy::useless_attribute)]
+        extern crate derrick as ___derrick;
         #(#declare_rs_modules)*
         #(#migration_modules)*
         #quoted_runtime_impl
@@ -75,18 +75,18 @@ fn quote_runtime_impl<T: ToTokens>(
     data: Vec<T>,
 ) -> TokenStream {
     let output = quote! {
-        impl _derrick::macros::MigrationRuntime for #runtime {
-            fn sources() -> Vec<_derrick::Macros::MigrationSource> {
-                let sources: Vec<_derrick::macros::MigrationSource> = vec![#(#sources),*];
+        impl ___derrick::macros::Runner for #runtime {
+            fn sources() -> Vec<___derrick::macros::MigrationSource> {
+                let sources: Vec<___derrick::macros::MigrationSource> = vec![#(#sources),*];
 
                 sources
             }
 
-            fn unapplied<'a: 'c: 'c>(&'c mut self) -> BoxFuture<'a, Result<Vec<Migration>, Error>> {
+            fn unapplied<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<Migration>, Error>> {
                 Box::pin(async move {
                     let migration_data: Vec<(i64, ___migration_types::MigrationData)> = vec![#(#data),*];
                     let current = self.get_current_version().await?;
-                    let mut migrations: Vec<_derrick::macros::Migration> = Vec::new();
+                    let mut migrations: Vec<___derrick::macros::Migration> = Vec::new();
 
                     for (version, datum) in migration_data.into_iter() {
                         if version <= current {
@@ -115,22 +115,23 @@ fn quote_types_mod(runtime: &syn::Ident) -> TokenStream {
     let output = quote! {
         pub mod ___migration_types {
             #[allow(unused_extern_crates, clippy::useless_attribute)]
-            extern crate derrick as _derrick;
+            extern crate derrick as ___derrick;
+            use super::#runtime;
 
             pub type ResolveMigrationFn = Box<
                 dyn for<'c> FnOnce(
                     &'c mut #runtime,
-                    &'c _derrick::macros::MigrationSource,
+                    &'c ___derrick::macros::MigrationSource,
                 ) ->
-                _derrick::macros::BoxFuture<'c,
-                    Result<_derrick::macros::Migration, _derrick::macros::Error>>
+                ___derrick::macros::BoxFuture<'c,
+                    Result<___derrick::macros::Migration, ___derrick::macros::Error>>
                 + Send
                 + Sync
             >;
 
             pub enum MigrationData {
-                SqlData(_derrick::macros::Migration),
-                RsData(_derrick::macros::MigrationSource, ResolveMigrationFn),
+                SqlData(___derrick::macros::Migration),
+                RsData(___derrick::macros::MigrationSource, ResolveMigrationFn),
             }
         }
     };
@@ -171,10 +172,10 @@ impl SourceToken {
 
         match source_type {
             parse::SourceType::Sql => {
-                quote! {(#version, __migration_types::MigrationData::SqlData(#module::migration()))}
+                quote! {(#version, ___migration_types::MigrationData::SqlData(#module::migration()))}
             }
             parse::SourceType::Rust => {
-                quote! {(#version, __migration_types::MigrationData::RsData(#source, Box::new(#module::future_migration)))}
+                quote! {(#version, ___migration_types::MigrationData::RsData(#source, Box::new(#module::future_migration)))}
             }
         }
     }
@@ -184,7 +185,7 @@ impl SourceToken {
         let description = &self.description;
         let content = &self.content;
         let output = quote! {
-            _derrick::macros::MigrationSource {
+            ___derrick::macros::MigrationSource {
                 version: #version,
                 description: #description.to_string(),
                 content: #content.to_string(),
@@ -216,13 +217,13 @@ impl SourceToken {
         let output = quote! {
             mod #module {
                 #[allow(unused_extern_crates, clippy::useless_attribute)]
-                extern crate derrick as _derrick;
+                extern crate derrick as ___derrick;
                 use super::*;
 
                 const SQL: &str = #sql;
 
-                pub fn migration() -> _derrick::macros::Migration {
-                    let source = _derrick::macros::MigrationSource {
+                pub fn migration() -> ___derrick::macros::Migration {
+                    let source = ___derrick::macros::MigrationSource {
                            version: #version,
                            description: #description.to_string(),
                            content: #content.to_string(),
@@ -233,9 +234,9 @@ impl SourceToken {
                         .next()
                         .map(|l| l.contains("derrick:noTransaction"))
                         .unwrap_or_default();
-                    let query = _derrick::macros::MigrationQuery::new(SQL.to_string(), no_tx);
+                    let query = ___derrick::macros::MigrationQuery::new(SQL.to_string(), no_tx);
 
-                    _derrick::macros::Migration::new(&source, query)
+                    ___derrick::macros::Migration::new(&source, query)
                 }
             }
         };

@@ -16,7 +16,7 @@ pub mod types {
 }
 
 pub use derrick_core::error::Error;
-pub use derrick_migrate::{MigrationRuntime, RunnerArgs};
+pub use derrick_migrate::Runner;
 
 pub use derrick_migrate_cli as cli;
 

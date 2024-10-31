@@ -20,14 +20,17 @@ pub trait Migrate
 where
     Self: Send + Sync,
 {
-    /// Data needed to initialize.
-    type MigrateInfo: HistoryTable + Clone + Send + Sync + 'static;
+    /// A `Migrate` has to manage the history table.
+    type History: HistoryTable + Clone + Send + Sync;
 
-    /// Create a new value from a connection string
-    /// and a value of the given `MigrateInfo`.
+    /// Additional data needed to initialize.
+    type Init: Clone + Send + Sync;
+
+    /// Create a new value.
     fn initialize(
         db_url: String,
-        info: Self::MigrateInfo,
+        history: Self::History,
+        data: Self::Init,
     ) -> BoxFuture<'static, Result<Self, Error>>
     where
         Self: Sized;

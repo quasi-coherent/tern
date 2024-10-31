@@ -24,14 +24,23 @@ impl GetEnvVar {
 }
 
 impl Migrate for ExampleMigrate {
-    type MigrateInfo = SqlxPgHistoryTable;
+    type History = SqlxPgHistoryTable;
+    // The `GetEnvVar` type doesn't need
+    // anything to initialize, so we need nothing
+    // additional to initialize `ExampleMigrate`.
+    //
+    // This would be data needed to create other
+    // other things if what had the `Runtime` derive
+    // macro were more complicated.
+    type Init = ();
 
     fn initialize(
         db_url: String,
-        info: Self::MigrateInfo,
+        history: Self::History,
+        data: Self::Init,
     ) -> BoxFuture<'static, Result<Self, Error>> {
         Box::pin(async move {
-            let migrate = <SqlxPgMigrate as Migrate>::initialize(db_url, info).await?;
+            let migrate = <SqlxPgMigrate as Migrate>::initialize(db_url, history, data).await?;
             Ok(Self {
                 migrate,
                 env: GetEnvVar,
