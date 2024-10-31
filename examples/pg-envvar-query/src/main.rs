@@ -1,9 +1,6 @@
 use clap::Parser;
 use derrick::cli::Opt;
-use derrick::prelude::*;
-use derrick::Runner;
-
-use pg_envvar_query::{ExampleMigrate, GetEnvVar};
+use pg_envvar_query::ExampleMigrate;
 
 #[tokio::main]
 async fn main() {

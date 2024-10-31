@@ -36,12 +36,14 @@ where
         <Self as Migrate>::initialize(db_url, history, data)
     }
 
-    /// It can calculate the difference between what is
-    /// in the migration source directory and what is
-    /// applied according to the history table because
-    /// a `Migrate` can.
-    fn applied(&mut self) -> BoxFuture<'_, Result<Vec<AppliedMigration>, Error>> {
-        self.get_all_applied()
+    /// Validate this set of migrations against the history table.
+    fn validate<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(async move {
+            let sources = Self::sources().clone();
+            let applied = self.get_all_applied().await?.clone();
+
+            <Self as Migrate>::validate_source(sources, applied)
+        })
     }
 
     /// The main method.  It calls the collection of
@@ -49,6 +51,7 @@ where
     /// them, and then applies them.
     fn run<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>> {
         Box::pin(async move {
+            self.check_history_table().await?;
             let unapplied = self.unapplied().await?;
             let mut applied = Vec::new();
 
@@ -63,49 +66,23 @@ where
 
     /// This applies a set of migrations provided by
     /// some method returning a set of unresolved migrations.
-    fn run_with<'a, 'b: 'a, F, M>(
-        &'b mut self,
+    fn run_with<'a, 'c: 'a, F>(
+        &'c mut self,
         callback: F,
     ) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>>
     where
-        M: Migrate,
-        for<'c> F:
-            FnOnce(&'c mut Self) -> BoxFuture<'c, Result<Vec<Migration>, Error>> + Send + Sync + 'b,
+        for<'b> F:
+            FnOnce(&'b mut Self) -> BoxFuture<'b, Result<Vec<Migration>, Error>> + Send + Sync + 'b,
     {
         Box::pin(async move {
-            let future_migrations = callback(self).await?;
+            let migrations = callback(self).await?;
             let mut applied = Vec::new();
-            for migration in future_migrations.iter() {
+            for migration in migrations.iter() {
                 let new_applied = self.apply(migration).await?;
                 applied.push(new_applied);
             }
 
             Ok(applied)
-        })
-    }
-
-    /// It can get the current applied version.
-    fn current_version(&mut self) -> BoxFuture<'_, Result<Option<i64>, Error>> {
-        Box::pin(async move {
-            let applied = self.get_all_applied().await?;
-            let current = applied.iter().fold(None::<i64>, |acc, m| match acc {
-                None => Some(m.version),
-                Some(v) if m.version > v => Some(m.version),
-                _ => acc,
-            });
-
-            Ok(current)
-        })
-    }
-
-    /// It can rely on its `Migrate` implementation to provide
-    /// a validation method.
-    fn validate<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<(), Error>> {
-        Box::pin(async move {
-            let sources = Self::sources().clone();
-            let applied = self.applied().await?.clone();
-
-            <Self as Migrate>::validate_source(sources, applied)
         })
     }
 }

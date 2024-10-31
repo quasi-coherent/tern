@@ -85,18 +85,18 @@ fn quote_runtime_impl<T: ToTokens>(
             fn unapplied<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<Migration>, Error>> {
                 Box::pin(async move {
                     let migration_data: Vec<(i64, ___migration_types::MigrationData)> = vec![#(#data),*];
-                    let current = self.get_current_version().await?;
+                    let current = self.current_version().await?;
                     let mut migrations: Vec<___derrick::macros::Migration> = Vec::new();
 
                     for (version, datum) in migration_data.into_iter() {
-                        if version <= current {
+                        if matches!(current, Some(v) if version <= v) {
                             continue;
                         }
 
                         match datum {
                             ___migration_types::MigrationData::SqlData(migration) => migrations.push(migration),
                             ___migration_types::MigrationData::RsData(source, resolver) => {
-                                let migration = resolver(&mut self, &source).await?;
+                                let migration = resolver(self, &source).await?;
                                 migrations.push(migration);
                             }
                         }

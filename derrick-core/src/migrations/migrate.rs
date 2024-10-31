@@ -67,7 +67,7 @@ where
     ) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>> {
         Box::pin(async move {
             let applied = self
-                .get_all_applied()
+                .get_history_rows()
                 .await?
                 .into_iter()
                 .map(AppliedMigration::from)
@@ -78,18 +78,17 @@ where
     }
 
     /// Get the most recent applied migration version.
-    fn current_version(&mut self) -> BoxFuture<'_, Result<i64, Error>> {
+    fn current_version(&mut self) -> BoxFuture<'_, Result<Option<i64>, Error>> {
         Box::pin(async move {
-            let current: i64 =
-                self.get_all_applied()
-                    .await?
-                    .into_iter()
-                    .fold(0, |acc, migration| {
-                        if migration.version > acc {
-                            return migration.version;
-                        }
-                        acc
-                    });
+            let current = self
+                .get_all_applied()
+                .await?
+                .into_iter()
+                .fold(None::<i64>, |acc, m| match acc {
+                    None => Some(m.version),
+                    Some(v) if m.version > v => Some(m.version),
+                    _ => acc,
+                });
 
             Ok(current)
         })

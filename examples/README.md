@@ -2,8 +2,9 @@
 
 ```
 > $ docker compose up -d
-> $ cd pg-envvar-query
-> $ DATABASE_URL=postgres://postgres:password@dockerhost:5433/postgres?sslmode=disable RUST_LOG=debug cargo run
+> $ export DATABASE_URL=postgres://postgres:password@dockerhost:5433/postgres?sslmode=disable
+> $ cargo b
+> $
 
 [2024-10-27T20:21:44Z DEBUG derrick_migrate::backends::sqlx::postgres] running `create table if exists` query
 [2024-10-27T20:21:44Z INFO  sqlx::postgres::notice] relation "_derrick_migrations" already exists, skipping
