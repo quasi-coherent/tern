@@ -1,8 +1,7 @@
 use derrick::prelude::*;
 use derrick::reexport::BoxFuture;
 use derrick::sqlx_postgres::{SqlxPgHistoryTable, SqlxPgMigrate};
-use derrick::types::{AppliedMigration, HistoryRow, Migration};
-use derrick::{forward_migrate_to_field, Error, Runtime};
+use derrick::{forward_migrate_to_field, Runtime};
 
 /// Migration runtime having the DB connection
 /// and in addition a way to get environment
@@ -42,7 +41,7 @@ impl Migrate for ExampleMigrate {
         db_url: String,
         history: Self::History,
         data: Self::Init,
-    ) -> BoxFuture<'static, Result<Self, Error>> {
+    ) -> BoxFuture<'static, Result<Self, derrick::Error>> {
         Box::pin(async move {
             let migrate = <SqlxPgMigrate as Migrate>::initialize(db_url, history, data).await?;
             Ok(Self {

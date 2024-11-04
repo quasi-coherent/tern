@@ -82,7 +82,10 @@ fn quote_runtime_impl<T: ToTokens>(
                 sources
             }
 
-            fn unapplied<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<Vec<Migration>, Error>> {
+            fn unapplied<'a, 'c: 'a>(
+                &'c mut self,
+            ) -> ___derrick::macros::BoxFuture<'a, Result<Vec<___derrick::macros::Migration>, ___derrick::macros::Error>>
+            {
                 Box::pin(async move {
                     let migration_data: Vec<(i64, ___migration_types::MigrationData)> = vec![#(#data),*];
                     let current = self.current_version().await?;
