@@ -24,13 +24,17 @@ impl GetEnvVar {
 }
 
 impl Migrate for ExampleMigrate {
+    // The schema and table where the migration
+    // history lives or should be created for the
+    // first time.
     type History = SqlxPgHistoryTable;
+
     // The `GetEnvVar` type doesn't need
     // anything to initialize, so we need nothing
     // additional to initialize `ExampleMigrate`.
     //
     // This would be data needed to create other
-    // other things if what had the `Runtime` derive
+    // things if what had the `Runtime` derive
     // macro were more complicated.
     type Init = ();
 
@@ -48,5 +52,8 @@ impl Migrate for ExampleMigrate {
         })
     }
 
+    // Deferring the implementation of all methods to the
+    // `SqlxPgMigrate` field, which implements `Migrate`
+    // over in `derrick-migrate`.
     forward_migrate_to_field!(SqlxPgMigrate, migrate);
 }
