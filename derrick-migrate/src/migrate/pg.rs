@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS {}(
   version bigint PRIMARY KEY,
   description text NOT NULL,
   content text NOT NULL,
-  duration_sec bigint NOT NULL,
+  duration_ms double precision NOT NULL,
   applied_at timestamptz NOT NULL DEFAULT now()
 );
 "#,
@@ -39,7 +39,7 @@ SELECT
   version,
   description,
   content,
-  duration_sec,
+  duration_ms,
   applied_at
 FROM
   {}

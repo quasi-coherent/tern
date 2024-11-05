@@ -82,7 +82,7 @@ pub struct HistoryRow {
     /// when it was applied.
     pub content: String,
     /// How long the migration took to run.
-    pub duration_sec: i64,
+    pub duration_ms: i64,
     /// When the applied migration was inserted.
     pub applied_at: DateTime<Utc>,
 }
@@ -93,7 +93,7 @@ impl From<HistoryRow> for AppliedMigration {
             version: v.version,
             description: v.description,
             content: v.content,
-            duration_sec: v.duration_sec,
+            duration_ms: v.duration_ms,
         }
     }
 }
