@@ -5,7 +5,7 @@ use derrick_core::types::{
     AppliedMigration, HistoryRow, HistoryTableInfo, Migration, MigrationSource,
 };
 use log::{debug, info};
-use sqlx::{postgres, Acquire, PgPool, Postgres};
+use sqlx::{postgres, Acquire, Executor, PgPool, Postgres};
 use std::time::Instant;
 
 use crate::migrate::pg::PgHistoryTableInfo;
@@ -86,9 +86,9 @@ impl Migrate for SqlxPgMigrate {
     fn check_history_table(&mut self) -> BoxFuture<'_, Result<(), Error>> {
         let history = self.history_table();
         let sql = history.create_if_not_exists_query().clone();
-        debug!(query:% = sql; "running `create table if exists` query");
 
         Box::pin(async move {
+            debug!("running `create table if exists` query");
             sqlx::query(&sql)
                 .execute(self.pool())
                 .await
@@ -97,11 +97,11 @@ impl Migrate for SqlxPgMigrate {
     }
 
     fn get_history_rows(&mut self) -> BoxFuture<'_, Result<Vec<HistoryRow>, Error>> {
-        let history = self.history_table();
-        let sql = history.select_star_from_query();
-        debug!(query:% = sql; "running select query");
-
         Box::pin(async move {
+            let history = self.history_table();
+            let sql = history.select_star_from_query();
+
+            debug!("running select query");
             let rows = sqlx::query_as::<Postgres, HistoryRow>(&sql)
                 .fetch_all(self.pool())
                 .await
@@ -115,16 +115,16 @@ impl Migrate for SqlxPgMigrate {
         &'c mut self,
         applied: &'a AppliedMigration,
     ) -> BoxFuture<'a, Result<(), Error>> {
-        let history = self.history_table();
-        let sql = history.insert_into_query(applied);
-        debug!(query:% = sql; "running insert query");
-
         Box::pin(async move {
+            let history = self.history_table();
+            let sql = history.insert_into_query(applied);
+
+            debug!("running insert query");
             sqlx::query(&sql)
                 .bind(applied.version)
                 .bind(applied.description.clone())
                 .bind(applied.content.clone())
-                .bind(applied.duration_sec)
+                .bind(applied.duration_ms)
                 .execute(self.pool())
                 .await
                 .into_error()?;
@@ -137,27 +137,22 @@ impl Migrate for SqlxPgMigrate {
         &'c mut self,
         migration: &'a Migration,
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>> {
-        info!(
-            version:% = migration.version,
-            sql:% = migration.sql,
-            no_tx:% = migration.no_tx;
-            "applying migration version"
-        );
         Box::pin(async move {
             let sql = &migration.sql;
             let now = Instant::now();
 
-            sqlx::query(sql)
-                .execute(self.pool())
+            info!("applying migration {}...", migration.version);
+            // We have to use `sqlx::raw_sql` because the `query_*`
+            // functions use prepared statements, and a migration with
+            // more than one query cannot be sent as a prepared statement.
+            self.pool()
+                .execute(sqlx::raw_sql(&sql))
                 .await
                 .into_error_with(migration)?;
-            let duration_sec = now.elapsed().as_secs() as i64;
-            let applied = migration.new_applied(duration_sec);
+            let duration_ms = now.elapsed().as_millis() as i64;
+            let applied = migration.new_applied(duration_ms);
 
-            info!(
-                version:% = migration.version;
-                "inserting migration into history table"
-            );
+            info!("migration {} applied", migration.version);
             self.insert_new_applied(&applied).await.into_error_void()?;
 
             Ok(applied)
@@ -168,37 +163,32 @@ impl Migrate for SqlxPgMigrate {
         &'c mut self,
         migration: &'a Migration,
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>> {
-        info!(
-            version:% = migration.version,
-            sql:% = migration.sql,
-            no_tx:% = migration.no_tx;
-            "applying migration version"
-        );
         Box::pin(async move {
-            let sql = &migration.sql;
+            let sql = migration.sql.to_string();
             let mut tx = self.pool().begin().await.into_error()?;
             let conn = tx.acquire().await.into_error()?;
 
             let now = Instant::now();
-            sqlx::query(sql)
-                .execute(&mut *conn)
+
+            info!("applying migration {}...", migration.version);
+            // We have to use `sqlx::raw_sql` because the `query_*`
+            // functions use prepared statements, and a migration with
+            // more than one query cannot be sent as a prepared statement.
+            conn.execute(sqlx::raw_sql(&sql))
                 .await
                 .into_error_with(migration)?;
-            let duration_sec = now.elapsed().as_secs() as i64;
+            let duration_ms = now.elapsed().as_millis() as i64;
 
-            let applied = migration.new_applied(duration_sec);
+            let applied = migration.new_applied(duration_ms);
             let history = self.history_table();
             let insert_sql = history.insert_into_query(&applied).clone();
 
-            info!(
-                version:% = migration.version;
-                "inserting migration into history table"
-            );
+            info!("migration {} applied", migration.version);
             sqlx::query(&insert_sql)
                 .bind(applied.version)
                 .bind(applied.description.clone())
                 .bind(applied.content.clone())
-                .bind(applied.duration_sec)
+                .bind(applied.duration_ms)
                 .execute(&mut *conn)
                 .await
                 .into_error_void()?;

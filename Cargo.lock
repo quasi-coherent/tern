@@ -375,6 +375,7 @@ dependencies = [
 name = "derrick-migrate"
 version = "1.0.0-rc1"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "derrick-core",
  "futures-core",

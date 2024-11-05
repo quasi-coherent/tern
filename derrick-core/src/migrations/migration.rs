@@ -29,9 +29,9 @@ impl Migration {
         }
     }
 
-    pub fn new_applied(&self, duration_sec: i64) -> AppliedMigration {
+    pub fn new_applied(&self, duration_ms: i64) -> AppliedMigration {
         AppliedMigration {
-            duration_sec,
+            duration_ms,
             description: self.description.to_string(),
             content: STANDARD.encode(self.content.as_ref()),
             version: self.version,
@@ -50,7 +50,7 @@ pub struct AppliedMigration {
     /// when it was applied.
     pub content: String,
     /// Apply duration.
-    pub duration_sec: i64,
+    pub duration_ms: i64,
 }
 
 impl AppliedMigration {
