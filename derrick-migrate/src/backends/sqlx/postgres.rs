@@ -54,7 +54,7 @@ impl HistoryTable for SqlxPgHistoryTable {
     fn insert_into_query(&self, _: &AppliedMigration) -> String {
         let sql = format!(
             "
-INSERT INTO {}(version, description, content, duration_sec)
+INSERT INTO {}(version, description, content, duration_ms)
   VALUES ($1, $2, $3, $4);",
             self.table(),
         );
