@@ -1,11 +1,8 @@
 use regex::Regex;
-use sqlparser::{
-    dialect::GenericDialect,
-    parser::{Parser, ParserOptions},
-};
 use std::{
     env,
     ffi::OsStr,
+    fmt::Write,
     fs,
     path::{Path, PathBuf},
     sync::OnceLock,
@@ -115,8 +112,7 @@ impl ParsedSource {
             .parse()
             .map_err(|_| ParseError::Name("invalid version, expected i64".to_string()))?;
         let source_type = SourceType::from_ext(ext)?;
-        let content = fs::read_to_string(filepath)?;
-        // .map_err(|e| ParseError::Content(format!("could not read file {:?}", e)))?;
+        let content = fs::read_to_string(filepath).map_err(|e| ParseError::Io(e.to_string()))?;
         let module = module
             .to_str()
             .ok_or(ParseError::Name(
@@ -133,41 +129,43 @@ impl ParsedSource {
         })
     }
 
-    /// For static SQL migrations, parse the query upfront to split
-    /// into statements (and additionally validate as a side effect).
+    /// For static SQL migrations split the file into statements.
     pub fn statements(&self) -> Result<Vec<String>, ParseError> {
         let sql = &self.content;
-        let opts = ParserOptions::new()
-            .with_trailing_commas(true)
-            .with_unescape(false);
-        let dialect = GenericDialect {};
-        let statements = Parser::new(&dialect)
-            .with_options(opts)
-            .try_with_sql(sql)?
-            .parse_statements()?
+        let mut statements = Vec::new();
+
+        sql.lines()
             .into_iter()
-            .map(|statement| statement.to_string())
-            .collect::<Vec<_>>();
+            .try_fold(String::new(), |mut buf, line| {
+                let line = line.trim();
+                // A comment or a not-a-statement-terminator line
+                // is a line belonging in this statement.  Otherwise
+                // it's the last line of the statement.
+                if line.starts_with("--") || !line.ends_with(";") {
+                    writeln!(buf, "{}", line)?;
+                    return Ok::<String, std::fmt::Error>(buf);
+                };
+                writeln!(buf, "{}", line)?;
+                // Last line of the statement. Push statement to
+                // collection and reset buffer.
+                statements.push(buf);
+                Ok(String::new())
+            })
+            .map_err(|e| ParseError::Sql(self.version, format!("{e:?}")))?;
 
         Ok(statements)
     }
 }
 
 #[allow(unused)]
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum ParseError {
-    #[error("filesystem error: {0}")]
     Directory(String),
-    #[error("filesystem error: {0}, {1}")]
     Path(String, String),
-    #[error("error with filename: {0}")]
     Name(String),
-    #[error("error with file extension: {0}")]
     Ext(String),
-    #[error("error reading source: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("error parsing raw sql: {0}")]
-    Parse(#[from] sqlparser::parser::ParserError),
+    Io(String),
+    Sql(i64, String),
 }
 
 #[derive(Debug, Clone, Copy)]

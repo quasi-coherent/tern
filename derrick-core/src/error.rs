@@ -19,7 +19,7 @@ pub enum Error {
     #[error("runtime could not resolve query: {0}")]
     ResolveQuery(String),
     #[error("could not parse migration query: {0}")]
-    Sql(#[from] sqlparser::parser::ParserError),
+    Sql(#[from] std::fmt::Error),
     /// A migration was found in the history table but not
     /// in the directory of migrations.
     #[error("migration {0} applied before but missing in resolved migrations")]
