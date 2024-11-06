@@ -28,7 +28,7 @@ where
     ) -> BoxFuture<'a, Result<Migration, Error>> {
         Box::pin(async move {
             let query = self.build_query(runtime).await?;
-            Ok(Migration::new(source, query))
+            Migration::new(source, query)
         })
     }
 }

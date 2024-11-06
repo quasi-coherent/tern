@@ -4,13 +4,13 @@
 //!   `runtime = ...` for the `migration` attribute.  The struct doesn't matter;
 //!   there just has to be _something_ to put the derive macro on.  The type that
 //!   that `runtime = ...` does matter though: it has to be the same as the main
-//!   "app" type -- the type having the dataase connection and implementing the
+//!   "app" type -- the type having the database connection and implementing the
 //!   `Migrate` trait.
 //!      - The `migration` attribute takes an optional argument `no_transaction`,
 //!        which instructs the migration runner to apply this migration outside
-//!        of a databasetransaction.
-//! * A function as below called `build_query` that takes the runtime and
-//!   returns the SQL query for the migration.
+//!        of a database transaction.
+//! * A function with signature as below called `build_query` that takes the given
+//!   runtime and returns the SQL query for the migration.
 use derrick::Error;
 use derrick::QueryBuilder;
 

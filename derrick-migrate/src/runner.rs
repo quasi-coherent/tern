@@ -4,7 +4,6 @@ use derrick_core::error::Error;
 use derrick_core::prelude::*;
 use derrick_core::reexport::BoxFuture;
 use derrick_core::types::{Migration, MigrationSource};
-use log::Level;
 
 /// Describes the main operations when used in
 /// practice.
@@ -95,8 +94,8 @@ where
 
             for migration in unapplied.iter() {
                 let new_applied = self.apply(migration).await.map_err(|e| {
-                    DisplayMigration::from_failed(&migration, e.to_string())
-                        .display_migration(Level::Error);
+                    let failed = DisplayMigration::from_failed(&migration, e.to_string());
+                    log::error!("{:#?}", failed);
                     e
                 })?;
                 report.push(DisplayMigration::from_new_applied(&new_applied));
@@ -126,10 +125,12 @@ where
 
             for migration in migrations.iter() {
                 let new_applied = self.apply(migration).await.map_err(|e| {
-                    DisplayMigration::from_failed(&migration, e.to_string())
-                        .display_migration(Level::Error);
+                    let failed = DisplayMigration::from_failed(&migration, e.to_string());
+                    log::error!("{:#?}", failed);
+
                     e
                 })?;
+
                 report.push(DisplayMigration::from_new_applied(&new_applied));
             }
 

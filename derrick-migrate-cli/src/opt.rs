@@ -78,9 +78,6 @@ pub struct ConnectOpts {
     /// line or from the environment variable `DATABASE_URL`.
     #[clap(long, short = 'D', env)]
     pub database_url: Option<String>,
-    /// Optional destination schema for the history table.
-    /// The default is whatever the default is given the URL.
-    pub history_schema: Option<String>,
     /// Optional destination table name in the destination
     /// schema.  The default is `_derrick_migrations`.
     pub history_table: Option<String>,

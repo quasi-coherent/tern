@@ -17,7 +17,6 @@ pub fn expand(input: syn::DeriveInput) -> Result<TokenStream> {
     Ok(output)
 }
 
-#[derive(Debug)]
 struct DeriveToken {
     name: syn::Ident,
     no_tx: syn::LitBool,

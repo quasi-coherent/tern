@@ -47,8 +47,8 @@ where
         applied: &'a AppliedMigration,
     ) -> BoxFuture<'a, Result<(), Error>>;
 
-    /// Apply a migration outside a transaction and if
-    /// successful, update history.
+    /// Apply a migration and update history outside of a
+    /// transaction.
     fn apply_no_tx<'a, 'c: 'a>(
         &'c mut self,
         migration: &'a Migration,
@@ -94,14 +94,6 @@ where
         })
     }
 
-    /// Enforce rules about source migrations.
-    fn validate_source(
-        source: Vec<MigrationSource>,
-        applied: Vec<AppliedMigration>,
-    ) -> Result<(), Error> {
-        NoValidation::validate(source, applied)
-    }
-
     /// Apply a migration.
     fn apply<'a, 'c: 'a>(
         &'c mut self,
@@ -112,6 +104,14 @@ where
         } else {
             self.apply_tx(migration)
         }
+    }
+
+    /// Enforce rules about source migrations.
+    fn validate_source(
+        source: Vec<MigrationSource>,
+        applied: Vec<AppliedMigration>,
+    ) -> Result<(), Error> {
+        NoValidation::validate(source, applied)
     }
 }
 

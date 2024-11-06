@@ -1,6 +1,11 @@
 use super::source::{MigrationQuery, MigrationSource};
+use crate::error::Error;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use sqlparser::{
+    dialect::GenericDialect,
+    parser::{Parser, ParserOptions},
+};
 use std::borrow::Cow;
 
 /// A migration that can be applied.
@@ -14,19 +19,36 @@ pub struct Migration {
     pub content: Cow<'static, str>,
     /// The query to run.
     pub sql: Cow<'static, str>,
+    /// The query divided into its individual statements.
+    pub statements: Cow<'static, [String]>,
     /// If true, not ran in a transaction.
     pub no_tx: bool,
 }
 
 impl Migration {
-    pub fn new(source: &MigrationSource, query: MigrationQuery) -> Self {
-        Self {
+    pub fn new(source: &MigrationSource, query: MigrationQuery) -> Result<Self, Error> {
+        let sql = query.sql();
+        let no_tx = query.no_tx();
+        let opts = ParserOptions::new()
+            .with_trailing_commas(true)
+            .with_unescape(false);
+        let dialect = GenericDialect {};
+        let statements = Parser::new(&dialect)
+            .with_options(opts)
+            .try_with_sql(sql)?
+            .parse_statements()?
+            .into_iter()
+            .map(|statement| statement.to_string())
+            .collect::<Vec<_>>();
+
+        Ok(Self {
             version: source.version,
             description: Cow::Owned(source.description.replace("_", " ")),
             content: Cow::Owned(source.content.to_string()),
-            sql: Cow::Owned(query.sql().to_string()),
-            no_tx: query.no_tx(),
-        }
+            sql: Cow::Owned(sql.to_string()),
+            statements: Cow::Owned(statements),
+            no_tx,
+        })
     }
 
     pub fn new_applied(&self, duration_ms: i64) -> AppliedMigration {

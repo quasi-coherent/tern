@@ -8,12 +8,12 @@ pub trait HistoryTable
 where
     Self: Send + Sync + Clone,
 {
-    /// Build from schema/table names.
-    fn new(info: &HistoryTableInfo) -> Self
+    /// Build from the table name.
+    fn new(options: &HistoryTableOptions) -> Self
     where
         Self: Sized;
 
-    /// Get the full object `{schema}.{table_name}`.
+    /// Get the table name.
     fn table(&self) -> String;
 
     fn create_if_not_exists_query(&self) -> String;
@@ -21,53 +21,37 @@ where
     fn insert_into_query(&self, applied: &AppliedMigration) -> String;
 }
 
-/// Config to create an instance of `HistoryTable`.
+/// Config for something that is a `HistoryTable`.
 #[derive(Debug, Clone)]
-pub struct HistoryTableInfo {
-    /// If none, defaults to what the connection thinks.
-    schema: Option<String>,
+pub struct HistoryTableOptions {
     /// Optional, but by now has been set to the default
     /// "_derrick_migrations" if it wasn't specified.
-    table_name: String,
+    name: String,
 }
 
-impl Default for HistoryTableInfo {
+impl Default for HistoryTableOptions {
     fn default() -> Self {
         Self {
-            schema: None,
-            table_name: "_derrick_migrations".to_string(),
+            name: "_derrick_migrations".to_string(),
         }
     }
 }
 
-impl HistoryTableInfo {
-    pub fn new(table_name: String) -> Self {
-        Self {
-            table_name,
-            ..Default::default()
-        }
+impl HistoryTableOptions {
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn set_table_name_if_some(mut self, table_name: Option<String>) -> Self {
-        if let Some(t) = table_name {
-            self.table_name = t;
-        }
+    pub fn set_name(mut self, name: Option<String>) -> Self {
+        let Some(n) = name else {
+            return self;
+        };
+        self.name = n;
         self
     }
 
-    pub fn set_schema_if_some(mut self, schema: Option<String>) -> Self {
-        if let Some(s) = schema {
-            self.schema = Some(s);
-        }
-        self
-    }
-
-    pub fn schema(&self) -> Option<String> {
-        self.schema.clone()
-    }
-
-    pub fn table_name(&self) -> String {
-        self.table_name.clone()
+    pub fn name(&self) -> String {
+        self.name.clone()
     }
 }
 

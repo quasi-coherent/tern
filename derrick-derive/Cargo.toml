@@ -9,7 +9,8 @@ proc-macro = true
 
 [dependencies]
 quote = "1.0"
-regex = "1.10.0"
-syn = { version = "2.0", features = ["extra-traits"] }
+regex = "1.10"
+sqlparser = "0.51"
+syn = "2.0"
 proc-macro2 = "1.0"
-prettyplease = "0.2.25"
+thiserror = "1.0"

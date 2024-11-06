@@ -4,3 +4,6 @@ CREATE TABLE dmd_test(
   x bigint,
   y text
 );
+
+INSERT INTO dmd_test(x, y)
+  VALUES (123, 'qwer');

@@ -11,5 +11,6 @@ futures-core = "0.3.25"
 futures-util = "0.3.25"
 sha2 = { version = "0.10", default-features = false }
 sqlx = "0.7"
+sqlparser = "0.51"
 thiserror = "1.0"
 url = { version = "2.5", default-features = false }

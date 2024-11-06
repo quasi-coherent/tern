@@ -34,7 +34,13 @@ pub fn expand(input: syn::DeriveInput) -> Result<TokenStream> {
         // Each migration has a module containing the necessary tokens.
         match src.source_type {
             parse::SourceType::Sql => {
-                let quote_mod = token.quote_sql_migration_mod();
+                let statements = src.statements().map_err(|e| {
+                    Error::new(
+                        token.module_orig.span(),
+                        format!("could not read raw sql: {}", e),
+                    )
+                })?;
+                let quote_mod = token.quote_sql_migration_mod(statements);
                 migration_modules.push(quote_mod);
             }
             _ => {
@@ -142,7 +148,6 @@ fn quote_types_mod(runtime: &syn::Ident) -> TokenStream {
     output
 }
 
-#[derive(Debug)]
 struct SourceToken {
     module_orig: syn::Ident,
     module: syn::Ident,
@@ -210,7 +215,7 @@ impl SourceToken {
         output
     }
 
-    fn quote_sql_migration_mod(&self) -> TokenStream {
+    fn quote_sql_migration_mod(&self, statements: Vec<String>) -> TokenStream {
         let module = &self.module;
         let version = &self.version;
         let description = &self.description;
@@ -226,20 +231,20 @@ impl SourceToken {
                 const SQL: &str = #sql;
 
                 pub fn migration() -> ___derrick::macros::Migration {
-                    let source = ___derrick::macros::MigrationSource {
-                           version: #version,
-                           description: #description.to_string(),
-                           content: #content.to_string(),
-                    };
-                    let no_tx = SQL
-                        .lines()
-                        .take(1)
-                        .next()
-                        .map(|l| l.contains("derrick:noTransaction"))
-                        .unwrap_or_default();
-                    let query = ___derrick::macros::MigrationQuery::new(SQL.to_string(), no_tx);
-
-                    ___derrick::macros::Migration::new(&source, query)
+                    let ss: Vec<&str> = vec![#(#statements),*];
+                    ___derrick::macros::Migration {
+                        version: #version,
+                        description: std::borrow::Cow::Owned(#description.to_string()),
+                        content: std::borrow::Cow::Owned(#content.to_string()),
+                        sql: std::borrow::Cow::Owned(#sql.to_string()),
+                        statements: std::borrow::Cow::Owned(ss.iter().map(|s| s.to_string()).collect::<Vec<_>>()),
+                        no_tx: SQL
+                            .lines()
+                            .take(1)
+                            .next()
+                            .map(|l| l.contains("derrick:noTransaction"))
+                            .unwrap_or_default(),
+                    }
                 }
             }
         };
