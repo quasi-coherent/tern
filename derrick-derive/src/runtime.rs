@@ -37,7 +37,7 @@ pub fn expand(input: syn::DeriveInput) -> Result<TokenStream> {
                 let statements = src.statements().map_err(|e| {
                     Error::new(
                         token.module_orig.span(),
-                        format!("could not read raw sql: {}", e),
+                        format!("could not read raw sql: {e:?}"),
                     )
                 })?;
                 let quote_mod = token.quote_sql_migration_mod(statements);

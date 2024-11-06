@@ -13,6 +13,10 @@ impl MigrationReport {
     pub fn new(report: Vec<DisplayMigration>) -> Self {
         Self { report }
     }
+
+    pub fn get(&self) -> &[DisplayMigration] {
+        &self.report
+    }
 }
 
 #[allow(dead_code)]

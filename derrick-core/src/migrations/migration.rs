@@ -2,10 +2,6 @@ use super::source::{MigrationQuery, MigrationSource};
 use crate::error::Error;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use sqlparser::{
-    dialect::GenericDialect,
-    parser::{Parser, ParserOptions},
-};
 use std::borrow::Cow;
 
 /// A migration that can be applied.
@@ -29,17 +25,7 @@ impl Migration {
     pub fn new(source: &MigrationSource, query: MigrationQuery) -> Result<Self, Error> {
         let sql = query.sql();
         let no_tx = query.no_tx();
-        let opts = ParserOptions::new()
-            .with_trailing_commas(true)
-            .with_unescape(false);
-        let dialect = GenericDialect {};
-        let statements = Parser::new(&dialect)
-            .with_options(opts)
-            .try_with_sql(sql)?
-            .parse_statements()?
-            .into_iter()
-            .map(|statement| statement.to_string())
-            .collect::<Vec<_>>();
+        let statements = query.statements()?;
 
         Ok(Self {
             version: source.version,

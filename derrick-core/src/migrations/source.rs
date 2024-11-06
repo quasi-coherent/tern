@@ -3,6 +3,7 @@ use super::migration::Migration;
 use crate::error::Error;
 
 use futures_core::future::BoxFuture;
+use std::fmt::Write;
 
 /// This type can produce the query for the migration.
 ///
@@ -51,6 +52,33 @@ impl MigrationQuery {
 
     pub fn no_tx(&self) -> bool {
         self.no_tx
+    }
+
+    /// No-tx queries with multiple statements need to be broken up
+    /// into individual statements.  TODO(qcoh): This could be less
+    /// brittle probably.
+    pub fn statements(&self) -> Result<Vec<String>, Error> {
+        let sql = &self.sql;
+        let mut statements = Vec::new();
+        sql.lines()
+            .into_iter()
+            .try_fold(String::new(), |mut buf, line| {
+                let line = line.trim();
+                // A comment or a not-a-statement-terminator line
+                // is a line belonging in this statement.  Otherwise
+                // it's the last line of the statement.
+                if line.starts_with("--") || !line.ends_with(";") {
+                    writeln!(buf, "{}", line)?;
+                    return Ok::<String, std::fmt::Error>(buf);
+                };
+                writeln!(buf, "{}", line)?;
+                // Last line of the statement. Push statement to
+                // collection and reset buffer.
+                statements.push(buf);
+                Ok(String::new())
+            })?;
+
+        Ok(statements)
     }
 }
 
