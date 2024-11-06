@@ -5,7 +5,7 @@ pub use opt::Opt;
 use opt::{Command, MigrateCommand};
 
 use derrick_core::prelude::*;
-use derrick_core::types::HistoryTableInfo;
+use derrick_core::types::HistoryTableOptions;
 use derrick_migrate::Runner;
 
 pub async fn run<R, I>(opt: Opt, data: I) -> anyhow::Result<()>
@@ -24,12 +24,9 @@ where
             MigrateCommand::List { connect_opts } => {
                 let db_url = connect_opts.required_db_url()?.to_string();
                 let table_name = connect_opts.history_table;
-                let schema = connect_opts.history_schema;
 
-                let table_info = HistoryTableInfo::default()
-                    .set_table_name_if_some(table_name)
-                    .set_schema_if_some(schema);
-                let history = <R as Migrate>::History::new(&table_info);
+                let table_options = HistoryTableOptions::default().set_name(table_name);
+                let history = <R as Migrate>::History::new(&table_options);
 
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
@@ -41,12 +38,9 @@ where
             MigrateCommand::Validate { connect_opts } => {
                 let db_url = connect_opts.required_db_url()?.to_string();
                 let table_name = connect_opts.history_table;
-                let schema = connect_opts.history_schema;
 
-                let table_info = HistoryTableInfo::default()
-                    .set_table_name_if_some(table_name)
-                    .set_schema_if_some(schema);
-                let history = <R as Migrate>::History::new(&table_info);
+                let table_options = HistoryTableOptions::default().set_name(table_name);
+                let history = <R as Migrate>::History::new(&table_options);
 
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
@@ -60,12 +54,9 @@ where
             } => {
                 let db_url = connect_opts.required_db_url()?.to_string();
                 let table_name = connect_opts.history_table;
-                let schema = connect_opts.history_schema;
 
-                let table_info = HistoryTableInfo::default()
-                    .set_table_name_if_some(table_name)
-                    .set_schema_if_some(schema);
-                let history = <R as Migrate>::History::new(&table_info);
+                let table_options = HistoryTableOptions::default().set_name(table_name);
+                let history = <R as Migrate>::History::new(&table_options);
 
                 let mut runner = R::new_runner(db_url, history, data).await?;
 

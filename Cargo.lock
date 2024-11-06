@@ -346,6 +346,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "sha2",
+ "sqlparser",
  "sqlx",
  "thiserror",
  "url",
@@ -355,11 +356,12 @@ dependencies = [
 name = "derrick-derive"
 version = "1.0.0-rc1"
 dependencies = [
- "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
+ "sqlparser",
  "syn 2.0.85",
+ "thiserror",
 ]
 
 [[package]]
@@ -994,16 +996,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prettyplease"
-version = "0.2.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d1ec885c64d0457d564db4ec299b2dae3f9c02808b8ad9c3a089c591b18033"
-dependencies = [
- "proc-macro2",
- "syn 2.0.85",
-]
-
-[[package]]
 name = "proc-macro2"
 version = "1.0.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1246,6 +1238,15 @@ checksum = "7bba3a93db0cc4f7bdece8bb09e77e2e785c20bfebf79eb8340ed80708048790"
 dependencies = [
  "nom",
  "unicode_categories",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.51.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fe11944a61da0da3f592e19a45ebe5ab92dc14a779907ff1f08fbb797bfefc7"
+dependencies = [
+ "log",
 ]
 
 [[package]]

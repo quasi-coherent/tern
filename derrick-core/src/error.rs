@@ -16,11 +16,10 @@ pub enum Error {
     #[error("error applying migration {1}: {0}")]
     ExecuteMigration(#[source] BoxDynError, i64),
     /// Error resolving query before migration.
-    #[error("could not build query for migration: {0}")]
+    #[error("runtime could not resolve query: {0}")]
     ResolveQuery(String),
-    /// Error resolving migrations from source.
-    #[error("could not resolve migrations: {0}")]
-    Source(#[from] SourceError),
+    #[error("could not parse migration query: {0}")]
+    Sql(#[from] sqlparser::parser::ParserError),
     /// A migration was found in the history table but not
     /// in the directory of migrations.
     #[error("migration {0} applied before but missing in resolved migrations")]
@@ -41,29 +40,6 @@ pub enum Error {
     /// for the operation requested.
     #[error("version {0} too new for the requested operation")]
     VersionTooNew(i64),
-}
-
-/// Errors coming from initially resolving a directory
-/// containing migrations into an ordered collection
-/// of migration data needed to apply them.
-#[derive(Debug, thiserror::Error)]
-pub enum SourceError {
-    /// Error interacting with filesystem.
-    #[error("error building source from filesystem: {0}")]
-    Filesystem(#[from] std::io::Error),
-    /// Migration extension not ".sql" or ".rs".
-    #[error("migration not a SQL or Rust migration: {0}")]
-    InvalidExt(String),
-    /// Invalid format for migration filename.
-    #[error("invalid format for filename: {0}")]
-    InvalidName(String),
-    /// An up migration was found without a down migration
-    /// or vice versa.
-    #[error("reversible migration {0} missing corresponding up/down migration")]
-    MissingReverse(String),
-    /// Error in parsing the raw file content.
-    #[error("error parsing content of migration: {0}")]
-    Parse(#[source] BoxDynError),
 }
 
 /// To support a generic database backend error and

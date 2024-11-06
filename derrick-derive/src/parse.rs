@@ -1,4 +1,8 @@
 use regex::Regex;
+use sqlparser::{
+    dialect::GenericDialect,
+    parser::{Parser, ParserOptions},
+};
 use std::{
     env,
     ffi::OsStr,
@@ -17,16 +21,17 @@ pub fn cargo_manifest_dir() -> PathBuf {
     PathBuf::from(manifest_dir)
 }
 
-#[derive(Debug)]
 pub struct SourceToken {
     pub runtime: syn::Ident,
     pub loc: syn::LitStr,
+    pub _tbl: Option<syn::LitStr>,
 }
 
 impl SourceToken {
     pub fn new(input: syn::DeriveInput) -> syn::Result<Self> {
         let runtime = &input.ident;
         let mut loc_arg = None::<syn::LitStr>;
+        let mut tbl = None::<syn::LitStr>;
         for attr in &input.attrs {
             if attr.path().is_ident("migration") {
                 attr.parse_nested_meta(|meta| {
@@ -35,18 +40,24 @@ impl SourceToken {
                         loc_arg = Some(loc_attr_val);
                     }
 
+                    if meta.path.is_ident("table") {
+                        let tbl_attr_val: syn::LitStr = meta.value()?.parse()?;
+                        tbl = Some(tbl_attr_val);
+                    }
+
                     Ok(())
                 })?
             }
         }
         let loc = loc_arg.ok_or(syn::Error::new(
             input.ident.span(),
-            "arg `path = migrations/dir/from/crate/root/` is required",
+            "arg `path = \"migrations/dir/from/crate/root/\"` is required",
         ))?;
 
         Ok(Self {
             runtime: runtime.clone(),
             loc,
+            _tbl: tbl,
         })
     }
 }
@@ -104,11 +115,11 @@ impl ParsedSource {
             .parse()
             .map_err(|_| ParseError::Name("invalid version, expected i64".to_string()))?;
         let source_type = SourceType::from_ext(ext)?;
-        let content = fs::read_to_string(filepath)
-            .map_err(|e| ParseError::Content(format!("could not read file {:?}", e)))?;
+        let content = fs::read_to_string(filepath)?;
+        // .map_err(|e| ParseError::Content(format!("could not read file {:?}", e)))?;
         let module = module
             .to_str()
-            .ok_or(ParseError::Content(
+            .ok_or(ParseError::Name(
                 "utf-8 decoding filename failed".to_string(),
             ))?
             .to_string();
@@ -121,16 +132,42 @@ impl ParsedSource {
             description: description.to_string(),
         })
     }
+
+    /// For static SQL migrations, parse the query upfront to split
+    /// into statements (and additionally validate as a side effect).
+    pub fn statements(&self) -> Result<Vec<String>, ParseError> {
+        let sql = &self.content;
+        let opts = ParserOptions::new()
+            .with_trailing_commas(true)
+            .with_unescape(false);
+        let dialect = GenericDialect {};
+        let statements = Parser::new(&dialect)
+            .with_options(opts)
+            .try_with_sql(sql)?
+            .parse_statements()?
+            .into_iter()
+            .map(|statement| statement.to_string())
+            .collect::<Vec<_>>();
+
+        Ok(statements)
+    }
 }
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ParseError {
+    #[error("filesystem error: {0}")]
     Directory(String),
+    #[error("filesystem error: {0}, {1}")]
     Path(String, String),
+    #[error("error with filename: {0}")]
     Name(String),
+    #[error("error with file extension: {0}")]
     Ext(String),
-    Content(String),
+    #[error("error reading source: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("error parsing raw sql: {0}")]
+    Parse(#[from] sqlparser::parser::ParserError),
 }
 
 #[derive(Debug, Clone, Copy)]

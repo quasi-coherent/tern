@@ -1,7 +1,9 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use derrick_core::types::{AppliedMigration, Migration};
-use log::{log, Level};
 
+// Only used in logging through `Debug`, which
+// is considered dead code.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MigrationReport {
     report: Vec<DisplayMigration>,
@@ -11,14 +13,9 @@ impl MigrationReport {
     pub fn new(report: Vec<DisplayMigration>) -> Self {
         Self { report }
     }
-
-    pub fn display_report(&self) {
-        for m in self.report.iter() {
-            m.display_migration(Level::Info)
-        }
-    }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct DisplayMigration {
     version: i64,
@@ -31,10 +28,6 @@ pub struct DisplayMigration {
 }
 
 impl DisplayMigration {
-    pub fn display_migration(&self, level: Level) {
-        log!(level, "{:#?}", self)
-    }
-
     pub fn from_unapplied(value: &Migration) -> Self {
         Self {
             version: value.version,

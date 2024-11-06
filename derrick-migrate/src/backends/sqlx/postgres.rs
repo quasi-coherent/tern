@@ -2,13 +2,13 @@ use derrick_core::error::{DatabaseError, Error};
 use derrick_core::prelude::*;
 use derrick_core::reexport::BoxFuture;
 use derrick_core::types::{
-    AppliedMigration, HistoryRow, HistoryTableInfo, Migration, MigrationSource,
+    AppliedMigration, HistoryRow, HistoryTableOptions, Migration, MigrationSource,
 };
 use log::{debug, info};
 use sqlx::{postgres, Acquire, Executor, PgPool, Postgres};
 use std::time::Instant;
 
-use crate::migrate::pg::PgHistoryTableInfo;
+use crate::migrate::pg::PgHistoryTableOptions;
 use crate::migrate::validate::Validate;
 
 /// A `Migrate` for `sqlx::PgPool`.
@@ -23,31 +23,25 @@ pub struct SqlxPgMigrate {
 /// table.
 #[derive(Debug, Clone)]
 pub struct SqlxPgHistoryTable {
-    schema: Option<String>,
-    table_name: String,
+    name: String,
 }
 
 impl HistoryTable for SqlxPgHistoryTable {
-    fn new(info: &HistoryTableInfo) -> Self {
-        Self::new(info.schema(), info.table_name())
+    fn new(options: &HistoryTableOptions) -> Self {
+        Self::new(options.name())
     }
 
     fn table(&self) -> String {
-        let table_name = self.table_name();
-        match self.schema() {
-            Some(schema) => format!("{schema}.{table_name}"),
-            // unqualified goes to a default location
-            _ => table_name,
-        }
+        self.name.clone()
     }
 
     fn create_if_not_exists_query(&self) -> String {
-        let pg_tbl = PgHistoryTableInfo::new(self.table());
+        let pg_tbl = PgHistoryTableOptions::new(self.name());
         pg_tbl.create_if_not_exists_query()
     }
 
     fn select_star_from_query(&self) -> String {
-        let pg_tbl = PgHistoryTableInfo::new(self.table());
+        let pg_tbl = PgHistoryTableOptions::new(self.name());
         pg_tbl.select_star_from_query()
     }
 
@@ -56,7 +50,7 @@ impl HistoryTable for SqlxPgHistoryTable {
             "
 INSERT INTO {}(version, description, content, duration_ms)
   VALUES ($1, $2, $3, $4);",
-            self.table(),
+            self.name(),
         );
 
         sql
@@ -138,17 +132,23 @@ impl Migrate for SqlxPgMigrate {
         migration: &'a Migration,
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>> {
         Box::pin(async move {
-            let sql = &migration.sql;
+            let statements = &migration.statements;
             let now = Instant::now();
 
-            info!("applying migration {}...", migration.version);
             // We have to use `sqlx::raw_sql` because the `query_*`
             // functions use prepared statements, and a migration with
             // more than one query cannot be sent as a prepared statement.
-            self.pool()
-                .execute(sqlx::raw_sql(&sql))
-                .await
-                .into_error_with(migration)?;
+            // On the other hand, a query that is not sent as a prepared
+            // statement but is comprised of multiple queries is ran in
+            // a transaction anyway.  So we have to run each statement
+            // individually.
+            info!("applying migration {}...", migration.version);
+            for statement in statements.iter() {
+                self.pool()
+                    .execute(sqlx::raw_sql(statement.as_ref()))
+                    .await
+                    .into_error_with(migration)?;
+            }
             let duration_ms = now.elapsed().as_millis() as i64;
             let applied = migration.new_applied(duration_ms);
 
@@ -225,15 +225,11 @@ impl SqlxPgMigrate {
 }
 
 impl SqlxPgHistoryTable {
-    pub fn new(schema: Option<String>, table_name: String) -> Self {
-        Self { schema, table_name }
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 
-    pub fn schema(&self) -> Option<String> {
-        self.schema.clone()
-    }
-
-    pub fn table_name(&self) -> String {
-        self.table_name.clone()
+    pub fn name(&self) -> String {
+        self.name.clone()
     }
 }
