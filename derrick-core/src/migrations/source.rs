@@ -1,5 +1,4 @@
-use super::migrate::Migrate;
-use super::migration::Migration;
+use super::{migrate::Migrate, migration::Migration};
 use crate::error::Error;
 
 use futures_core::future::BoxFuture;
@@ -7,8 +6,8 @@ use std::fmt::Write;
 
 /// This type can produce the query for the migration.
 ///
-/// The `M` is *the* migration runner, so it
-/// needs to have the union of all the capabilities
+/// The associated runtime is *the* migration runner,
+/// so it needs to have the union of all the capabilities
 /// needed for any one migration.
 pub trait QueryBuilder
 where

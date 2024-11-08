@@ -41,7 +41,7 @@ impl Migration {
         AppliedMigration {
             duration_ms,
             description: self.description.to_string(),
-            content: STANDARD.encode(self.content.as_ref()),
+            content: STANDARD.encode(self.sql.as_ref()),
             version: self.version,
         }
     }
@@ -54,8 +54,8 @@ pub struct AppliedMigration {
     pub version: i64,
     /// Migration description.
     pub description: String,
-    /// The base64 encoding of the migration file
-    /// when it was applied.
+    /// The base64 encoding of the SQL
+    /// that ran when it was applied.
     pub content: String,
     /// Apply duration.
     pub duration_ms: i64,

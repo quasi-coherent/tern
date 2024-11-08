@@ -98,7 +98,10 @@ where
                     log::error!("{:#?}", failed);
                     e
                 })?;
-                report.push(DisplayMigration::from_new_applied(&new_applied));
+                report.push(DisplayMigration::from_new_applied(
+                    &new_applied,
+                    migration.no_tx,
+                ));
             }
 
             Ok(MigrationReport::new(report))
@@ -131,7 +134,10 @@ where
                     e
                 })?;
 
-                report.push(DisplayMigration::from_new_applied(&new_applied));
+                report.push(DisplayMigration::from_new_applied(
+                    &new_applied,
+                    migration.no_tx,
+                ));
             }
 
             Ok(MigrationReport::new(report))

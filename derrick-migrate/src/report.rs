@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use derrick_core::types::{AppliedMigration, Migration};
 
-// Only used in logging through `Debug`, which
+// Only used in logging via `Debug`, which
 // is considered dead code.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -16,6 +16,10 @@ impl MigrationReport {
 
     pub fn get(&self) -> &[DisplayMigration] {
         &self.report
+    }
+
+    pub fn show(&self) {
+        self.get().iter().for_each(|m| log::info!("{m:#?}"))
     }
 }
 
@@ -60,8 +64,11 @@ impl DisplayMigration {
         Self::from_applied(value, MigrationState::Existing)
     }
 
-    pub fn from_new_applied(value: &AppliedMigration) -> Self {
-        Self::from_applied(value, MigrationState::NewApplied)
+    pub fn from_new_applied(value: &AppliedMigration, no_tx: bool) -> Self {
+        Self {
+            transactional: Transactional::from_boolean(no_tx),
+            ..Self::from_applied(value, MigrationState::NewApplied)
+        }
     }
 
     fn from_applied(value: &AppliedMigration, state: MigrationState) -> Self {
@@ -81,7 +88,7 @@ impl DisplayMigration {
             version: value.version,
             description: value.description.to_string(),
             sql: Self::preview_sql(&sql),
-            transactional: Transactional::NotApplicable,
+            transactional: Transactional::NotApplicable("PreviouslyApplied".to_string()),
             duration_ms: RunDuration::Duration(value.duration_ms),
             error_reason: MigrationErrors::None,
         }
@@ -112,11 +119,11 @@ impl std::fmt::Display for MigrationState {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Transactional {
     NoTransaction,
     InTransaction,
-    NotApplicable,
+    NotApplicable(String),
 }
 
 impl std::fmt::Display for Transactional {
@@ -124,7 +131,7 @@ impl std::fmt::Display for Transactional {
         match self {
             Self::NoTransaction => write!(f, "NO_TRANSACTION"),
             Self::InTransaction => write!(f, "IN_TRANSACTION"),
-            Self::NotApplicable => write!(f, "N/A"),
+            Self::NotApplicable(s) => write!(f, "{s}"),
         }
     }
 }

@@ -7,8 +7,9 @@ use futures_core::future::BoxFuture;
 
 /// The runtime for applying a migration set.
 ///
-/// There are two required methods: `apply_tx` and
-/// `apply_no_tx`.  These do (respectively, do _not_)
+/// There are required methods for interacting with the
+/// schema history table, but additionally `apply_tx` and
+/// `apply_no_tx`.  These should (respectively, should _not_)
 /// run an individual migration within a transaction.
 ///
 /// _Note_: If a migration is not ran in a transaction,

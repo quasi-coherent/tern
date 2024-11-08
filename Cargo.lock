@@ -395,6 +395,7 @@ dependencies = [
  "derrick-migrate",
  "dotenvy",
  "env_logger",
+ "log",
  "regex",
 ]
 

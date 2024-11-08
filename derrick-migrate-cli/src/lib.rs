@@ -27,11 +27,10 @@ where
 
                 let table_options = HistoryTableOptions::default().set_name(table_name);
                 let history = <R as Migrate>::History::new(&table_options);
-
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
-                let applied = runner.get_all_applied().await?;
-                println!("previously applied migrations {:?}", applied);
+                let report = runner.list().await?;
+                report.show();
 
                 Ok(())
             }
@@ -41,7 +40,6 @@ where
 
                 let table_options = HistoryTableOptions::default().set_name(table_name);
                 let history = <R as Migrate>::History::new(&table_options);
-
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
                 runner.validate().await?;
@@ -57,16 +55,14 @@ where
 
                 let table_options = HistoryTableOptions::default().set_name(table_name);
                 let history = <R as Migrate>::History::new(&table_options);
-
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
-                if dry_run {
-                    let unapplied = runner.unapplied().await?;
-                    println!("unapplied migrations {:?}", unapplied);
+                let report = if dry_run {
+                    runner.dryrun().await?
                 } else {
-                    let new_applied = runner.run().await?;
-                    println!("newly applied migrations {:?}", new_applied);
-                }
+                    runner.run().await?
+                };
+                report.show();
 
                 Ok(())
             }
