@@ -29,7 +29,7 @@ impl Migration {
 
         Ok(Self {
             version: source.version,
-            description: Cow::Owned(source.description.replace("_", " ")),
+            description: Cow::Owned(source.description.to_string()),
             content: Cow::Owned(source.content.to_string()),
             sql: Cow::Owned(sql.to_string()),
             statements: Cow::Owned(statements),
