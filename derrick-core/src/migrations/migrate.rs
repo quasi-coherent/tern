@@ -1,4 +1,4 @@
-use super::history::{HistoryRow, HistoryTable};
+use super::history::{ExistingMigration, HistoryTable};
 use super::migration::{AppliedMigration, Migration};
 use super::source::MigrationSource;
 use crate::error::Error;
@@ -40,7 +40,7 @@ where
     fn check_history_table(&mut self) -> BoxFuture<'_, Result<(), Error>>;
 
     /// Get the full history table.
-    fn get_history_rows(&mut self) -> BoxFuture<'_, Result<Vec<HistoryRow>, Error>>;
+    fn get_history_table(&mut self) -> BoxFuture<'_, Result<Vec<ExistingMigration>, Error>>;
 
     /// Insert a newly applied migration.
     fn insert_new_applied<'a, 'c: 'a>(
@@ -61,35 +61,18 @@ where
         migration: &'a Migration,
     ) -> BoxFuture<'a, Result<AppliedMigration, Error>>;
 
-    /// Get the full history table but convert the rows
-    /// to the type inhabited by pre-inserted migrations.
-    fn get_all_applied<'a, 'c: 'a>(
-        &'c mut self,
-    ) -> BoxFuture<'a, Result<Vec<AppliedMigration>, Error>> {
-        Box::pin(async move {
-            let applied = self
-                .get_history_rows()
-                .await?
-                .into_iter()
-                .map(AppliedMigration::from)
-                .collect::<Vec<_>>();
-
-            Ok(applied)
-        })
-    }
-
     /// Get the most recent applied migration version.
     fn current_version(&mut self) -> BoxFuture<'_, Result<Option<i64>, Error>> {
         Box::pin(async move {
-            let current = self
-                .get_all_applied()
-                .await?
-                .into_iter()
-                .fold(None::<i64>, |acc, m| match acc {
-                    None => Some(m.version),
-                    Some(v) if m.version > v => Some(m.version),
-                    _ => acc,
-                });
+            let current =
+                self.get_history_table()
+                    .await?
+                    .into_iter()
+                    .fold(None::<i64>, |acc, m| match acc {
+                        None => Some(m.version),
+                        Some(v) if m.version > v => Some(m.version),
+                        _ => acc,
+                    });
 
             Ok(current)
         })
@@ -110,9 +93,9 @@ where
     /// Enforce rules about source migrations.
     fn validate_source(
         source: Vec<MigrationSource>,
-        applied: Vec<AppliedMigration>,
+        history: Vec<ExistingMigration>,
     ) -> Result<(), Error> {
-        NoValidation::validate(source, applied)
+        NoValidation::validate(source, history)
     }
 }
 
@@ -123,7 +106,7 @@ pub struct NoValidation;
 impl NoValidation {
     fn validate(
         _source: Vec<MigrationSource>,
-        _applied: Vec<AppliedMigration>,
+        _applied: Vec<ExistingMigration>,
     ) -> Result<(), Error> {
         Ok(())
     }

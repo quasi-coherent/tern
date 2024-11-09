@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use derrick_core::types::{AppliedMigration, Migration};
+use chrono::{DateTime, Utc};
+use derrick_core::types::{AppliedMigration, ExistingMigration, Migration};
 
 // Only used in logging via `Debug`, which
 // is considered dead code.
@@ -18,8 +19,12 @@ impl MigrationReport {
         &self.report
     }
 
-    pub fn show(&self) {
-        self.get().iter().for_each(|m| log::info!("{m:#?}"))
+    pub fn count(&self) -> usize {
+        self.get().len()
+    }
+
+    pub fn display(&self) {
+        log::info!("Summary:\n {:#?}", self.get())
     }
 }
 
@@ -28,6 +33,7 @@ impl MigrationReport {
 pub struct DisplayMigration {
     version: i64,
     state: MigrationState,
+    applied_at: Option<DateTime<Utc>>,
     description: String,
     sql: String,
     transactional: Transactional,
@@ -40,6 +46,7 @@ impl DisplayMigration {
         Self {
             version: value.version,
             state: MigrationState::Unapplied,
+            applied_at: None,
             description: value.description.to_string(),
             sql: Self::preview_sql(&value.sql),
             transactional: Transactional::from_boolean(value.no_tx),
@@ -52,6 +59,7 @@ impl DisplayMigration {
         Self {
             version: value.version,
             state: MigrationState::FailedUnapplied,
+            applied_at: None,
             description: value.description.to_string(),
             sql: Self::preview_sql(&value.sql),
             transactional: Transactional::from_boolean(value.no_tx),
@@ -60,38 +68,49 @@ impl DisplayMigration {
         }
     }
 
-    pub fn from_existing(value: &AppliedMigration) -> Self {
-        Self::from_applied(value, MigrationState::Existing)
-    }
+    pub fn from_existing(value: &ExistingMigration) -> Self {
+        let sql = Self::decode_content(&value.content);
 
-    pub fn from_new_applied(value: &AppliedMigration, no_tx: bool) -> Self {
         Self {
-            transactional: Transactional::from_boolean(no_tx),
-            ..Self::from_applied(value, MigrationState::NewApplied)
+            state: MigrationState::Existing,
+            version: value.version,
+            description: value.description.to_string(),
+            sql: Self::preview_sql(&sql),
+            applied_at: Some(value.applied_at),
+            transactional: Transactional::NotApplicable("ExistingMigration".to_string()),
+            duration_ms: RunDuration::Duration(value.duration_ms),
+            error_reason: MigrationErrors::None,
         }
     }
 
-    fn from_applied(value: &AppliedMigration, state: MigrationState) -> Self {
-        let sql = match STANDARD.decode(&value.content.as_bytes()) {
+    pub fn from_applied(value: &AppliedMigration, no_tx: bool) -> Self {
+        let sql = Self::decode_content(&value.content);
+
+        Self {
+            state: MigrationState::NewApplied,
+            version: value.version,
+            description: value.description.to_string(),
+            sql: Self::preview_sql(&sql),
+            applied_at: Some(Utc::now()),
+            transactional: Transactional::from_boolean(no_tx),
+            duration_ms: RunDuration::Duration(value.duration_ms),
+            error_reason: MigrationErrors::None,
+        }
+    }
+
+    fn decode_content(content: &str) -> String {
+        let sql = match STANDARD.decode(&content.as_bytes()) {
             Ok(b) => {
                 if let Ok(decoded) = std::str::from_utf8(&b) {
                     decoded.to_string()
                 } else {
-                    format!("error base64 decoding...{}", value.content)
+                    format!("error base64 decoding...{}", content)
                 }
             }
-            _ => value.content.to_string(),
+            _ => content.to_string(),
         };
 
-        Self {
-            state,
-            version: value.version,
-            description: value.description.to_string(),
-            sql: Self::preview_sql(&sql),
-            transactional: Transactional::NotApplicable("PreviouslyApplied".to_string()),
-            duration_ms: RunDuration::Duration(value.duration_ms),
-            error_reason: MigrationErrors::None,
-        }
+        sql
     }
 
     fn preview_sql(sql: &str) -> String {

@@ -9,7 +9,7 @@ pub mod reexport {
 
 pub mod types {
     pub use derrick_core::types::{
-        AppliedMigration, HistoryRow, HistoryTableOptions, Migration, MigrationQuery,
+        AppliedMigration, ExistingMigration, HistoryTableOptions, Migration, MigrationQuery,
         MigrationSource, NoValidation,
     };
 

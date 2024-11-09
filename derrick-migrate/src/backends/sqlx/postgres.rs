@@ -2,9 +2,8 @@ use derrick_core::error::{DatabaseError, Error};
 use derrick_core::prelude::*;
 use derrick_core::reexport::BoxFuture;
 use derrick_core::types::{
-    AppliedMigration, HistoryRow, HistoryTableOptions, Migration, MigrationSource,
+    AppliedMigration, ExistingMigration, HistoryTableOptions, Migration, MigrationSource,
 };
-use log::{debug, info};
 use sqlx::{postgres, Acquire, Executor, PgPool, Postgres};
 use std::time::Instant;
 
@@ -82,7 +81,7 @@ impl Migrate for SqlxPgMigrate {
         let sql = history.create_if_not_exists_query().clone();
 
         Box::pin(async move {
-            debug!("running `create table if exists` query");
+            log::debug!("running `create table if exists` query");
             sqlx::query(&sql)
                 .execute(self.pool())
                 .await
@@ -90,13 +89,13 @@ impl Migrate for SqlxPgMigrate {
         })
     }
 
-    fn get_history_rows(&mut self) -> BoxFuture<'_, Result<Vec<HistoryRow>, Error>> {
+    fn get_history_table(&mut self) -> BoxFuture<'_, Result<Vec<ExistingMigration>, Error>> {
         Box::pin(async move {
             let history = self.history_table();
             let sql = history.select_star_from_query();
 
-            debug!("running select query");
-            let rows = sqlx::query_as::<Postgres, HistoryRow>(&sql)
+            log::debug!("running select query");
+            let rows = sqlx::query_as::<Postgres, ExistingMigration>(&sql)
                 .fetch_all(self.pool())
                 .await
                 .into_error()?;
@@ -113,7 +112,7 @@ impl Migrate for SqlxPgMigrate {
             let history = self.history_table();
             let sql = history.insert_into_query(applied);
 
-            debug!("running insert query");
+            log::debug!("running insert query");
             sqlx::query(&sql)
                 .bind(applied.version)
                 .bind(applied.description.clone())
@@ -142,7 +141,7 @@ impl Migrate for SqlxPgMigrate {
             // statement but is comprised of multiple queries is ran in
             // a transaction anyway.  So we have to run each statement
             // individually.
-            info!("applying migration {}...", migration.version);
+            log::debug!("applying migration {}...", migration.version);
             for statement in statements.iter() {
                 self.pool()
                     .execute(sqlx::raw_sql(statement.as_ref()))
@@ -152,7 +151,7 @@ impl Migrate for SqlxPgMigrate {
             let duration_ms = now.elapsed().as_millis() as i64;
             let applied = migration.new_applied(duration_ms);
 
-            info!("migration {} applied", migration.version);
+            log::debug!("migration {} applied", migration.version);
             self.insert_new_applied(&applied).await.into_error_void()?;
 
             Ok(applied)
@@ -170,7 +169,7 @@ impl Migrate for SqlxPgMigrate {
 
             let now = Instant::now();
 
-            info!("applying migration {}...", migration.version);
+            log::debug!("applying migration {}...", migration.version);
             // We have to use `sqlx::raw_sql` because the `query_*`
             // functions use prepared statements, and a migration with
             // more than one query cannot be sent as a prepared statement.
@@ -183,7 +182,7 @@ impl Migrate for SqlxPgMigrate {
             let history = self.history_table();
             let insert_sql = history.insert_into_query(&applied).clone();
 
-            info!("migration {} applied", migration.version);
+            log::debug!("migration {} applied", migration.version);
             sqlx::query(&insert_sql)
                 .bind(applied.version)
                 .bind(applied.description.clone())
@@ -201,9 +200,9 @@ impl Migrate for SqlxPgMigrate {
 
     fn validate_source(
         source: Vec<MigrationSource>,
-        applied: Vec<AppliedMigration>,
+        history: Vec<ExistingMigration>,
     ) -> Result<(), Error> {
-        Validate::run_validation(source, applied)
+        Validate::run_validation(source, history)
     }
 }
 

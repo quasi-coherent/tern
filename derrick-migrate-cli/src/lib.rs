@@ -30,7 +30,7 @@ where
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
                 let report = runner.list().await?;
-                report.show();
+                log::info!("Existing migrations: {:#?}", report);
 
                 Ok(())
             }
@@ -57,12 +57,17 @@ where
                 let history = <R as Migrate>::History::new(&table_options);
                 let mut runner = R::new_runner(db_url, history, data).await?;
 
-                let report = if dry_run {
-                    runner.dryrun().await?
+                if dry_run {
+                    let report = runner.dryrun().await?;
+                    log::info!("Migration plan: {:#?}", report);
                 } else {
-                    runner.run().await?
+                    let report = runner.run().await?;
+                    if report.count() == 0 {
+                        log::info!("No migrations to apply!");
+                        return Ok(());
+                    }
+                    report.display();
                 };
-                report.show();
 
                 Ok(())
             }

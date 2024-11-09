@@ -3,7 +3,7 @@ use super::migration::AppliedMigration;
 use chrono::{DateTime, Utc};
 use std::convert::From;
 
-/// Interaction with the migration history table.
+/// Describing the migration history table.
 pub trait HistoryTable
 where
     Self: Send + Sync + Clone,
@@ -24,8 +24,9 @@ where
 /// Config for something that is a `HistoryTable`.
 #[derive(Debug, Clone)]
 pub struct HistoryTableOptions {
-    /// Optional, but by now has been set to the default
-    /// "_derrick_migrations" if it wasn't specified.
+    /// The name of the table.
+    /// The default implementation
+    /// sets it to `_derrick_migrations`.
     name: String,
 }
 
@@ -57,7 +58,7 @@ impl HistoryTableOptions {
 
 /// A row in the migration history table.
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct HistoryRow {
+pub struct ExistingMigration {
     /// The migration version.
     pub version: i64,
     /// The description of the migration.
@@ -71,8 +72,15 @@ pub struct HistoryRow {
     pub applied_at: DateTime<Utc>,
 }
 
-impl From<HistoryRow> for AppliedMigration {
-    fn from(v: HistoryRow) -> Self {
+impl ExistingMigration {
+    pub fn order_by_asc(mut history: Vec<ExistingMigration>) -> Vec<ExistingMigration> {
+        history.sort_by_key(|m| m.version);
+        history
+    }
+}
+
+impl From<ExistingMigration> for AppliedMigration {
+    fn from(v: ExistingMigration) -> Self {
         AppliedMigration {
             version: v.version,
             description: v.description,

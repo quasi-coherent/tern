@@ -18,10 +18,13 @@ macro_rules! forward_migrate_to_field {
         ) -> derrick::reexport::BoxFuture<'_, Result<(), derrick::Error>> {
             <$from as derrick::prelude::Migrate>::check_history_table(&mut self.$field)
         }
-        fn get_history_rows(
+        fn get_history_table(
             &mut self,
-        ) -> derrick::reexport::BoxFuture<'_, Result<Vec<derrick::types::HistoryRow>, derrick::Error>> {
-            <$from as derrick::prelude::Migrate>::get_history_rows(&mut self.$field)
+        ) -> derrick::reexport::BoxFuture<
+            '_,
+            Result<Vec<derrick::types::ExistingMigration>, derrick::Error>,
+        > {
+            <$from as derrick::prelude::Migrate>::get_history_table(&mut self.$field)
         }
         fn insert_new_applied<'a, 'c: 'a>(
             &'c mut self,
@@ -32,13 +35,19 @@ macro_rules! forward_migrate_to_field {
         fn apply_no_tx<'a, 'c: 'a>(
             &'c mut self,
             migration: &'a derrick::types::Migration,
-        ) -> derrick::reexport::BoxFuture<'a, Result<derrick::types::AppliedMigration, derrick::Error>> {
+        ) -> derrick::reexport::BoxFuture<
+            'a,
+            Result<derrick::types::AppliedMigration, derrick::Error>,
+        > {
             <$from as Migrate>::apply_no_tx(&mut self.$field, migration)
         }
         fn apply_tx<'a, 'c: 'a>(
             &'c mut self,
             migration: &'a derrick::types::Migration,
-        ) -> derrick::reexport::BoxFuture<'a, Result<derrick::types::AppliedMigration, derrick::Error>> {
+        ) -> derrick::reexport::BoxFuture<
+            'a,
+            Result<derrick::types::AppliedMigration, derrick::Error>,
+        > {
             <$from as derrick::prelude::Migrate>::apply_tx(&mut self.$field, migration)
         }
     };

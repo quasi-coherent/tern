@@ -42,9 +42,9 @@ where
     fn validate<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<(), Error>> {
         Box::pin(async move {
             let sources = Self::sources().clone();
-            let applied = self.get_all_applied().await?.clone();
+            let history = self.get_history_table().await?.clone();
 
-            <Self as Migrate>::validate_source(sources, applied)
+            <Self as Migrate>::validate_source(sources, history)
         })
     }
 
@@ -52,7 +52,7 @@ where
     fn list<'a, 'c: 'a>(&'c mut self) -> BoxFuture<'a, Result<MigrationReport, Error>> {
         Box::pin(async move {
             let report = self
-                .get_all_applied()
+                .get_history_table()
                 .await?
                 .iter()
                 .map(DisplayMigration::from_existing)
@@ -93,15 +93,16 @@ where
             let mut report = Vec::new();
 
             for migration in unapplied.iter() {
-                let new_applied = self.apply(migration).await.map_err(|e| {
+                log::info!("Applying migration, version {}...", migration.version);
+                let applied = self.apply(migration).await.map_err(|e| {
                     let failed = DisplayMigration::from_failed(&migration, e.to_string());
-                    log::error!("{:#?}", failed);
+                    log::error!("Error applying migration: {:#?}", failed);
                     e
                 })?;
-                report.push(DisplayMigration::from_new_applied(
-                    &new_applied,
-                    migration.no_tx,
-                ));
+
+                let display = DisplayMigration::from_applied(&applied, migration.no_tx);
+                log::info!("Successfully applied migration: {:#?}", display);
+                report.push(display);
             }
 
             Ok(MigrationReport::new(report))
@@ -127,17 +128,16 @@ where
             let mut report = Vec::new();
 
             for migration in migrations.iter() {
-                let new_applied = self.apply(migration).await.map_err(|e| {
+                log::info!("Applying migration, version {}...", migration.version);
+                let applied = self.apply(migration).await.map_err(|e| {
                     let failed = DisplayMigration::from_failed(&migration, e.to_string());
-                    log::error!("{:#?}", failed);
-
+                    log::error!("Error applying migration: {:#?}", failed);
                     e
                 })?;
 
-                report.push(DisplayMigration::from_new_applied(
-                    &new_applied,
-                    migration.no_tx,
-                ));
+                let display = DisplayMigration::from_applied(&applied, migration.no_tx);
+                log::info!("Successfully applied migration: {:#?}", display);
+                report.push(display);
             }
 
             Ok(MigrationReport::new(report))
