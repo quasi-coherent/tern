@@ -11,18 +11,29 @@ that need to be dynamically built at the time of being applied.  It also aims
 to do this while being agnostic to the particular choice of crate for
 database interaction.
 
+## Executors
+
+The abstract `Executor` is the type responsible for actually connecting to
+a database and issuing queries.  Right now, this project supports all of the
+[`sqlx`][sqlx-repo] pool types via the generic [`Pool`][sqlx-pool], so that
+includes PostgreSQL, MySQL, and SQLite. These can be enabled via feature
+flag.
+
+Adding more executors is welcomed! That can be in PR form or as a feature
+request.  Adding an executor seems like it should not be hard.
+
 ## Usage
 
-Embedded migrations are prepared, built, and ran from a directory living in
+Embedded migrations are prepared, built, and ran off a directory living in
 a Rust project's source. These stages are handled by three separate traits,
 but implementing any of them is generally not necessary.  `tern` exposes
 derive macros that supply everything needed:
 
-* [`MigrationSource`]: Given the required `source` macro attribute, which is
+* `MigrationSource`: Given the required `source` macro attribute, which is
   a path to the directory containing the migrations, it prepares the
   migration set that is required of the given operation requested.
-* [`MigrationContext`]: Generates what is needed of the context to be an
-  acceptable type used in the [`Runner`].  It has the field attribute
+* `MigrationContext`: Generates what is needed of the context to be an
+  acceptable type used in the `Runner`.  It has the field attribute
   `executor_via` that can decorate a field of the struct that has some
   `Executor`, or connection type.  The context can build migration queries
   and run them.
@@ -39,6 +50,7 @@ use tern::{MigrationSource, MigrationContext, Runner};
 #[derive(MigrationSource, MigrationContext)]
 #[tern(source = "src/migrations", table = "example")]
 struct Example {
+   // `Example` itself needs to be an executor without the annotation.
    #[tern(executor_via)]
     executor: SqlxPgExecutor,
 }
@@ -51,16 +63,42 @@ println!("{report:#?}");
 
 ```
 
-For a more in-depth example, including how a Rust migration is constructed, see
-the [examples][examples-repo].
+For a more in-depth example, see the [examples][examples-repo].
 
-## Executors
+### Rust migrations
 
-The executor is the type responsible for actually connecting to a database
-and issuing queries.  Right now, this project supports all of the `sqlx`
-connection pool types via the generic [`Pool`][sqlx-pool], so that includes
-PostgreSQL, MySQL, and SQLite, enabled via feature flag.  Adding other
-executors is encouraged! Either in PR form or as a feature request.
+Migrations can be expressed in Rust, and these can take advantage of the
+arbitrary migration context to flexibly build the query at runtime.  To do
+this, the context needs to know how to build the query, and what migration
+to build it for.  This is achieved using some convention, a hand-written
+trait implementation, and another macro:
+
+```rust
+use tern::error::TernResult;
+use tern::migration::{Query, QueryBuilder};
+use tern::Migration;
+
+/// This is the convention: it needs to be called this for the macro
+/// implementation.  This macro has an attribute `no_transaction` that
+/// instructs the context associated to it by `QueryBuilder` below to run
+/// the query outside of a transaction.
+#[derive(Migration)]
+pub struct TernMigration;
+
+impl QueryBuilder for TernMigration {
+    /// The context from above.
+    type Ctx = Example;
+
+    async fn build(&self, ctx: &mut Self::Ctx) -> TernResult<Query> {
+        // Really anything can happen here.  It just depends on what
+        // `Self::Ctx` can do.
+        let sql = "SELECT 1;";
+        let query = Query::new(sql);
+        Ok(query)
+    }
+}
+
+```
 
 ## CLI
 
@@ -92,9 +130,8 @@ Options:
 ```
 
 [examples-repo]: https://github.com/quasi-coherent/tern/tree/master/examples
+[sqlx-repo]: https://github.com/launchbadge/sqlx
 [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
-[mit-license]: ./LICENSE-MIT
-[apache-license]: ./LICENSE-APACHE
 
 <!-- cargo-rdme end -->
 
