@@ -1,0 +1,21 @@
+[package]
+name = "tern-core"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+
+sqlx_postgres = ["sqlx", "sqlx/postgres"]
+sqlx_mysql = ["sqlx", "sqlx/mysql"]
+sqlx_sqlite = ["sqlx", "sqlx/sqlite"]
+
+[dependencies]
+chrono = "0.4"
+futures-core = "0.3"
+log = "0.4"
+sqlx = {version = "0.8", features = ["chrono"], optional = true }
+thiserror = "1.0"
