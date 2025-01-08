@@ -1,5 +1,5 @@
 use custom_context::ExampleOptions;
-use tern::cli::App;
+use tern::App;
 
 #[tokio::main]
 async fn main() {

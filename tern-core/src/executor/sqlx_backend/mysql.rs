@@ -1,9 +1,13 @@
+//! [`Executor`] for [`sqlx::MySqlPool`][mysql-pool].
+//!
+//! [`Executor`]: crate::migration::Executor
+//! [mysql-pool]: https://docs.rs/sqlx/0.8.3/sqlx/type.MySqlPool.html
 use sqlx::MySql;
 
 use super::pool::SqlxExecutor;
 use crate::migration::{AppliedMigration, Query, QueryRepository};
 
-/// Specialization of the generic context for `sqlx::Pool` to `sqlx::MySqlPool`.
+/// Specialization of `SqlxExecutor` to `sqlx::MySqlPool`.
 pub type SqlxMySqlExecutor = SqlxExecutor<MySql, SqlxMySqlQueryRepo>;
 
 /// The schema history table queries for mysql.

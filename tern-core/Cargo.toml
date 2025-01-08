@@ -1,5 +1,6 @@
 [package]
 name = "tern-core"
+description = "Core interfaces and types for `tern` migration tooling."
 version.workspace = true
 license.workspace = true
 edition.workspace = true

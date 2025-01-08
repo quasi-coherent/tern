@@ -1,4 +1,16 @@
-//! # tern
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+//! <h1 align="center">tern</h1>
+//! <br />
+//! <div align="center">
+//!   <!-- Version -->
+//!   <a href="https://crates.io/crates/tern">
+//!     <img src="https://img.shields.io/crates/v/tern.svg?style=flat-square"
+//!     alt="Crates.io version" /></a>
+//!   <!-- Docs -->
+//!   <a href="https://docs.rs/tern">
+//!     <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square" alt="docs.rs docs" /></a>
+//! </div>
 //!
 //! A database migration library and CLI supporting embedded migrations written
 //! in SQL or Rust.
@@ -24,8 +36,8 @@
 //!
 //! Embedded migrations are prepared, built, and ran off a directory living in
 //! a Rust project's source. These stages are handled by three separate traits,
-//! but implementing any of them is generally not necessary.  `tern` exposes
-//! derive macros that supply everything needed:
+//! but implementing any of them is generally not necessary --  `tern` exposes
+//! derive macros that supply everything needed to satisfy them.
 //!
 //! * [`MigrationSource`]: Given the required `source` macro attribute, which is
 //!   a path to the directory containing the migrations, it prepares the
@@ -132,44 +144,47 @@
 //! Options:
 //!   -h, --help  Print help
 //! ```
-//!
-//! [`MigrationSource`]: crate::migration::MigrationSource
-//! [`MigrationContext`]: crate::migration::MigrationContext
-//! [`Executor`]: crate::migration::Executor
-//! [`Runner`]: crate::Runner
+//! [`MigrationSource`]: https://docs.rs/tern/1.0.0/tern/trait.MigrationSource.html
+//! [`MigrationContext`]: https://docs.rs/tern/1.0.0/tern/trait.MigrationContext.html
+//! [`Executor`]: https://docs.rs/tern/1.0.0/tern/trait.Executor.html
+//! [`Runner`]: https://docs.rs/tern/1.0.0/tern/struct.Runner.html
 //! [examples-repo]: https://github.com/quasi-coherent/tern/tree/master/examples
 //! [sqlx-repo]: https://github.com/launchbadge/sqlx
 //! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
-//!
+
+pub use tern_core::error;
+
+#[doc(inline)]
+pub use tern_core::migration::{
+    self, Executor, Migration, MigrationContext, MigrationSet, MigrationSource, Query, QueryBuilder,
+};
+
+#[doc(inline)]
+pub use tern_core::runner::{MigrationResult, Report, Runner};
+
+#[cfg(feature = "sqlx_mysql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sqlx_mysql")))]
+#[doc(inline)]
+pub use tern_core::executor::sqlx_backend::mysql::SqlxMySqlExecutor;
+
+#[cfg(feature = "sqlx_postgres")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sqlx_postgres")))]
+#[doc(inline)]
+pub use tern_core::executor::sqlx_backend::postgres::SqlxPgExecutor;
+
+#[cfg(feature = "sqlx_sqlite")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sqlx_sqlite")))]
+#[doc(inline)]
+pub use tern_core::executor::sqlx_backend::sqlite::SqlxSqliteExecutor;
+
+pub mod future {
+    //! `futures` re-exports.
+    pub use tern_core::future::{BoxFuture, Future};
+}
 
 #[cfg(feature = "cli")]
 #[doc(hidden)]
-pub use tern_cli::{self as cli, App, ContextOptions};
-pub use tern_core::runner::{MigrationResult, Report, Runner};
-pub use tern_core::{error, migration};
-
-pub mod executor {
-    //! Specific backend implementations.  These are enabled via feature flags.
-    #[cfg(feature = "sqlx_mysql")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_mysql")))]
-    pub use tern_core::executor::SqlxMySqlExecutor;
-
-    #[cfg(feature = "sqlx_postgres")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_postgres")))]
-    pub use tern_core::executor::SqlxPgExecutor;
-
-    #[cfg(feature = "sqlx_sqlite")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_sqlite")))]
-    pub use tern_core::executor::SqlxSqliteExecutor;
-}
-
-pub mod types {
-    pub use super::migration::{AppliedMigration, MigrationSet, Query};
-}
-
-pub mod future {
-    pub use tern_core::future::{BoxFuture, Future};
-}
+pub use tern_cli::{App, ContextOptions};
 
 #[doc(hidden)]
 extern crate tern_derive;

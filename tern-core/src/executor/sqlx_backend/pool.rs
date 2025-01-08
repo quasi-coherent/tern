@@ -1,3 +1,8 @@
+//! [`Executor`] for the generic [`sqlx::Pool`][sqlx-pool], a pool of `sqlx`
+//! database connections.
+//!
+//! [`Executor`]: crate::migration::Executor
+//! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
 use chrono::{DateTime, Utc};
 use sqlx::{Acquire, Database, Encode, Executor, FromRow, IntoArguments, Pool, Type};
 use std::marker::PhantomData;
