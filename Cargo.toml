@@ -1,28 +1,51 @@
 [workspace]
-members = ["derrick-core", "derrick-derive", "derrick-macros", "derrick-migrate", "derrick-migrate-cli"]
-exclude = ["examples"]
+members = [
+  ".",
+  "tern-core",
+  "tern-cli",
+  "tern-derive",
+  "examples/custom-context",
+]
+default-members = ["tern-core", "tern-cli", "tern-derive"]
+exclude = []
 
 [workspace.package]
-version = "1.0.0-rc1"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
+repository = "https://github.com/quasi-coherent/tern"
+keywords = ["embedded", "database", "migrations", "postgres", "mysql"]
+categories = ["database"]
 authors = ["Daniel Donohue <daniel.donohue@beyondidentity.com>"]
+rust-version = "1.81.0"
 
 [package]
-name = "derrick"
-description = "SQL migration tool inspired by refinery."
+name = "tern"
+readme = "README.md"
+description = "Embedded database migrations in SQL or Rust."
 version.workspace = true
+license.workspace = true
 edition.workspace = true
 authors.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+features = ["unstable-doc"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
+
+[features]
+cli = ["tern-cli"]
+
+sqlx_postgres = ["tern-core/sqlx_postgres"]
+sqlx_mysql = ["tern-core/sqlx_mysql"]
+sqlx_sqlite = ["tern-core/sqlx_sqlite"]
 
 [workspace.dependencies]
-derrick-core = { version = "=1.0.0-rc1", path = "derrick-core" }
-derrick-derive = { version = "=1.0.0-rc1", path = "derrick-derive" }
-derrick-macros = { version = "=1.0.0-rc1", path = "derrick-macros" }
-derrick-migrate = { version = "=1.0.0-rc1", path = "derrick-migrate" }
-derrick-migrate-cli = { version = "=1.0.0-rc1", path = "derrick-migrate-cli" }
+tern-core = { version = "=0.1.0", path = "tern-core" }
+tern-cli = { version = "=0.1.0", path = "tern-cli" }
+tern-derive = { version = "=0.1.0", path = "tern-derive" }
 
 [dependencies]
-derrick-core.workspace = true
-derrick-macros.workspace = true
-derrick-migrate.workspace = true
-derrick-migrate-cli.workspace = true
+tern-core.workspace = true
+tern-cli = { workspace = true, optional = true }
+tern-derive.workspace = true

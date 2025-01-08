@@ -1,0 +1,29 @@
+[config]
+default_to_workspace = false
+skip_core_tasks = true
+init_task = "init"
+end_task = "end"
+
+[tasks.init]
+
+[tasks.default]
+alias = "check"
+
+[tasks.clippy]
+command = "cargo"
+args = ["clippy", "--workspace", "--all-features", "--", "-DWarnings"]
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.doc]
+command = "cargo"
+args = ["doc", "--workspace", "--all-features", "--no-deps"]
+
+[tasks.readme]
+command = "cargo"
+args = ["rdme", "--force", "-w", "tern", "--intralinks-strip-links"]
+
+[tasks.end]
+alias = "fmt"

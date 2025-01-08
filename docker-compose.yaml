@@ -1,0 +1,18 @@
+services:
+
+  postgres:
+    image:
+      postgres:16-bookworm
+    environment:
+      POSTGRES_PASSWORD: "password"
+    ports:
+      - "5433:5432"
+
+  mysql:
+    image:
+      mysql:8.0-bookworm
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_ROOT_PASSWORD: "password"
+    ports:
+      - "3307:3306"
