@@ -10,7 +10,7 @@
 //! location.  The field attribute `executor_via` points out the field that
 //! should be used to implement the required functionality a database connection
 //! would have.
-use tern::{cli::ContextOptions, error::TernResult, executor::SqlxPgExecutor};
+use tern::{error::TernResult, ContextOptions, SqlxPgExecutor};
 use tern::{MigrationContext, MigrationSource};
 
 /// `SqlxPgExecutor` is a supported connection type and it already implements

@@ -1,3 +1,17 @@
+//! This module contains types and traits related to the migration files.
+//!
+//! * [`Migration`] is the abstract representation of what is built from a
+//!   migration file.
+//! * [`QueryBuilder`] is the recipe for building the query for a migration.
+//! * [`MigrationSource`] is the ability to produce the set of migrations, a
+//!   [`MigrationSet`], for a particular context in order to be ran in that
+//!   context.
+//! * [`MigrationContext`] is the core type.  It has an associated [`Executor`]
+//!   and it can produce the migrations from source.  Combined, it has the full
+//!   functionality of the migration tool.
+//!
+//! Generally these don't need to be implemented.  Their corresponding derive
+//! macros can be used instead.
 use chrono::{DateTime, Utc};
 use futures_core::{future::BoxFuture, Future};
 use std::{fmt::Write, time::Instant};
@@ -268,6 +282,11 @@ where
     /// The latest version in the set.
     pub fn max(&self) -> Option<i64> {
         self.versions().iter().max().copied()
+    }
+
+    /// The set is empty for the requested operation.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

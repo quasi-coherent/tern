@@ -1,3 +1,9 @@
+//! A migration runner for a context.
+//!
+//! The [`Runner`] type accepts any [`MigrationContext`].  With that, it exposes
+//! a method for any operation a migration run would need.
+//!
+//! Each method also exists as a command or subcommand of the CLI.
 use chrono::{DateTime, Utc};
 
 use crate::error::{TernResult, ToMigrationResult as _};

@@ -9,9 +9,12 @@ end_task = "end"
 [tasks.default]
 alias = "check"
 
+[tasks.lint]
+dependencies = ["fmt", "clippy"]
+
 [tasks.clippy]
 command = "cargo"
-args = ["clippy", "--workspace", "--all-features", "--", "-DWarnings"]
+args = ["clippy", "--workspace", "--all-features", "--", "-Dwarnings"]
 
 [tasks.fmt]
 command = "cargo"
@@ -23,7 +26,7 @@ args = ["doc", "--workspace", "--all-features", "--no-deps"]
 
 [tasks.readme]
 command = "cargo"
-args = ["rdme", "--force", "-w", "tern", "--intralinks-strip-links"]
+args = ["rdme", "--force", "-w", "tern"]
 
 [tasks.end]
 alias = "fmt"

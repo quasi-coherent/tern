@@ -1,10 +1,21 @@
+//! The CLI for the [`tern`][tern-docs] migration library.
+//!
+//! This exports the [`App`] type and [`ContextOptions`], which help turn a
+//! project using `tern` into a CLI.
+//!
+//! The `App` is the CLI. `ContextOptions` exists to connect a generic context
+//! to the CLI since it is the CLI that supplies the database URL, surely
+//! required of the context, but not anything else the context might need to
+//! initialize.
+//!
+//! [tern-docs]: https://docs.rs/crate/tern/latest
 use clap::Parser;
 use tern_core::error::TernResult;
 use tern_core::future::Future;
 use tern_core::migration::MigrationContext;
 use tern_core::runner::Runner;
 
-pub mod cli;
+mod cli;
 mod commands;
 
 /// A type that can build a particular context with a database url.

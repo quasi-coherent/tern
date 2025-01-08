@@ -1,6 +1,16 @@
 <!-- cargo-rdme start -->
 
-# tern
+<h1 align="center">tern</h1>
+<br />
+<div align="center">
+  <!-- Version -->
+  <a href="https://crates.io/crates/tern">
+    <img src="https://img.shields.io/crates/v/tern.svg?style=flat-square"
+    alt="Crates.io version" /></a>
+  <!-- Docs -->
+  <a href="https://docs.rs/tern">
+    <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square" alt="docs.rs docs" /></a>
+</div>
 
 A database migration library and CLI supporting embedded migrations written
 in SQL or Rust.
@@ -13,7 +23,7 @@ database interaction.
 
 ## Executors
 
-The abstract `Executor` is the type responsible for actually connecting to
+The abstract [`Executor`] is the type responsible for actually connecting to
 a database and issuing queries.  Right now, this project supports all of the
 [`sqlx`][sqlx-repo] pool types via the generic [`Pool`][sqlx-pool], so that
 includes PostgreSQL, MySQL, and SQLite. These can be enabled via feature
@@ -26,16 +36,16 @@ request.  Adding an executor seems like it should not be hard.
 
 Embedded migrations are prepared, built, and ran off a directory living in
 a Rust project's source. These stages are handled by three separate traits,
-but implementing any of them is generally not necessary.  `tern` exposes
-derive macros that supply everything needed:
+but implementing any of them is generally not necessary --  `tern` exposes
+derive macros that supply everything needed to satisfy them.
 
-* `MigrationSource`: Given the required `source` macro attribute, which is
+* [`MigrationSource`]: Given the required `source` macro attribute, which is
   a path to the directory containing the migrations, it prepares the
   migration set that is required of the given operation requested.
-* `MigrationContext`: Generates what is needed of the context to be an
-  acceptable type used in the `Runner`.  It has the field attribute
+* [`MigrationContext`]: Generates what is needed of the context to be an
+  acceptable type used in the [`Runner`].  It has the field attribute
   `executor_via` that can decorate a field of the struct that has some
-  `Executor`, or connection type.  The context can build migration queries
+  [`Executor`], or connection type.  The context can build migration queries
   and run them.
 
 Put together, that looks like this.
@@ -128,7 +138,10 @@ Commands:
 Options:
   -h, --help  Print help
 ```
-
+[`MigrationSource`]: https://docs.rs/tern/1.0.0/tern/trait.MigrationSource.html
+[`MigrationContext`]: https://docs.rs/tern/1.0.0/tern/trait.MigrationContext.html
+[`Executor`]: https://docs.rs/tern/1.0.0/tern/trait.Executor.html
+[`Runner`]: https://docs.rs/tern/1.0.0/tern/struct.Runner.html
 [examples-repo]: https://github.com/quasi-coherent/tern/tree/master/examples
 [sqlx-repo]: https://github.com/launchbadge/sqlx
 [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
