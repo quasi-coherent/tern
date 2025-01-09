@@ -1,10 +1,13 @@
 services:
 
   postgres:
-    image:
-      postgres:16-bookworm
+    build:
+      dockerfile: postgres16.Dockerfile
+      context: "etc"
     environment:
+      POSTGRES_USER: "tern"
       POSTGRES_PASSWORD: "password"
+      POSTGRES_DATABASE: "tern"
     ports:
       - "5433:5432"
 
@@ -13,6 +16,8 @@ services:
       mysql:8.0-bookworm
     environment:
       MYSQL_ROOT_HOST: "%"
-      MYSQL_ROOT_PASSWORD: "password"
+      MYSQL_USER: "tern"
+      MYSQL_PASSWORD: "password"
+      MYSQL_DATABASE: "tern"
     ports:
       - "3307:3306"

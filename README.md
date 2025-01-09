@@ -46,7 +46,7 @@ derive macros that supply everything needed to satisfy them.
   acceptable type used in the [`Runner`].  It has the field attribute
   `executor_via` that can decorate a field of the struct that has some
   [`Executor`], or connection type.  The context can build migration queries
-  and run them.
+  and run them using this executor.
 
 Put together, that looks like this.
 
@@ -74,6 +74,19 @@ println!("{report:#?}");
 ```
 
 For a more in-depth example, see the [examples][examples-repo].
+
+### SQL migrations
+
+Since migrations are embedded in the final executable, and static SQL
+migrations are not Rust source, any changes to a SQL migration doesn't force
+a recompilation, which can cause confusing issues.  To remedy, a `build.rs`
+file can be put in the project directory with these contents:
+
+```rust
+fn main() -> {
+    println!("cargo:rerun-if-changed=src/migrations/")
+}
+```
 
 ### Rust migrations
 
@@ -107,7 +120,34 @@ impl QueryBuilder for TernMigration {
         Ok(query)
     }
 }
+```
 
+### Database transactions
+
+By default, a migration and its accompanying schema history table update run
+in a database transaction.  Sometimes this is not desirable and other times
+it is not allowed.  For instance, in postgres you cannot create an index
+`CONCURRENTLY` in a transaction.  To give the user the option, `tern` reads
+certain annotations to determine whether the runner should apply the
+migration in a transaction or not.
+
+For a SQL migration:
+
+```sql
+-- tern:noTransaction
+-- This annotation has to be on the first line after `--`
+CREATE INDEX CONCURRENTLY IF NOT EXISTS blah ON whatever;
+```
+
+For a Rust migration:
+
+```rust
+use tern::Migration;
+
+/// Don't run this in a migration.
+#[derive(Migration)]
+#[tern(no_transaction)]
+pub struct TernMigration;
 ```
 
 ## CLI
@@ -138,10 +178,10 @@ Commands:
 Options:
   -h, --help  Print help
 ```
-[`MigrationSource`]: https://docs.rs/tern/1.0.0/tern/trait.MigrationSource.html
-[`MigrationContext`]: https://docs.rs/tern/1.0.0/tern/trait.MigrationContext.html
-[`Executor`]: https://docs.rs/tern/1.0.0/tern/trait.Executor.html
-[`Runner`]: https://docs.rs/tern/1.0.0/tern/struct.Runner.html
+[`MigrationSource`]: https://docs.rs/tern/1.0.1/tern/trait.MigrationSource.html
+[`MigrationContext`]: https://docs.rs/tern/1.0.1/tern/trait.MigrationContext.html
+[`Executor`]: https://docs.rs/tern/1.0.1/tern/trait.Executor.html
+[`Runner`]: https://docs.rs/tern/1.0.1/tern/struct.Runner.html
 [examples-repo]: https://github.com/quasi-coherent/tern/tree/master/examples
 [sqlx-repo]: https://github.com/launchbadge/sqlx
 [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html

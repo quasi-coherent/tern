@@ -1,8 +1,16 @@
+extend = [
+    { path = "examples/examples.toml" },
+]
+
 [config]
 default_to_workspace = false
 skip_core_tasks = true
 init_task = "init"
 end_task = "end"
+
+[env]
+POSTGRES_URL = "postgres://tern:password@localhost:5433/tern"
+MYSQL_URL = "mysql://tern:password@localhost:3307/tern"
 
 [tasks.init]
 
@@ -27,6 +35,24 @@ args = ["doc", "--workspace", "--all-features", "--no-deps"]
 [tasks.readme]
 command = "cargo"
 args = ["rdme", "--force", "-w", "tern"]
+
+[tasks.pgenv]
+command = "docker"
+args = ["compose", "up", "--wait", "postgres"]
+
+[tasks.mysqlenv]
+command = "docker"
+args = ["compose", "up", "--wait", "mysql"]
+
+[tasks.run_example]
+dependencies = ["pgenv"]
+env = { env_set = ["DATABASE_URL", "PACKAGE"] }
+command = "cargo"
+args = ["r", "-p", "${PACKAGE}", "--", "migrate", "apply-all"]
+
+[tasks.run_pg_example]
+env = { DATABASE_URL = "${POSTGRES_URL}", env_set = ["PACKAGE"] }
+run_task = "run_example"
 
 [tasks.end]
 alias = "fmt"
