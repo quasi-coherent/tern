@@ -38,6 +38,15 @@ where
                 .apply(migration.as_ref())
                 .await
                 .to_migration_result(migration.as_ref());
+
+            if result.is_error() {
+                log::error!("error applying migration {id} {}", result.error_reason());
+                results.push(result);
+                let report = Report::new(results);
+
+                return Ok(report);
+            }
+
             results.push(result);
         }
         let report = Report::new(results);
@@ -221,13 +230,21 @@ impl MigrationResult {
         }
     }
 
+    fn is_error(&self) -> bool {
+        self.state == MigrationState::Failed
+    }
+
+    fn error_reason(&self) -> String {
+        format!("{}", self.error_reason)
+    }
+
     fn truncate_content(content: &str) -> String {
         let res = content.lines().take(10).collect::<Vec<_>>().join("\n") + "...";
         res.to_string()
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 enum MigrationState {
     Applied,
     SoftApplied,

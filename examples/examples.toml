@@ -1,0 +1,7 @@
+[tasks.custom-context]
+env = { PACKAGE = "custom-context" }
+run_task = "run_pg_example"
+
+[tasks.index-partitioned-table-concurrently]
+env = { PACKAGE = "index-partitioned-table-concurrently" }
+run_task = "run_pg_example"
