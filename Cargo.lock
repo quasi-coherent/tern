@@ -353,7 +353,6 @@ name = "custom-context"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "dotenvy",
  "env_logger",
  "log",
  "sqlx",
@@ -855,7 +854,6 @@ name = "index-partitioned-table-concurrently"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "dotenvy",
  "env_logger",
  "log",
  "sqlx",
