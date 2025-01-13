@@ -22,26 +22,26 @@ being agnostic to the particular choice of crate for database interaction.
 
 ## Executors
 
-The abstract `Executor` is the type responsible for actually connecting to
-a database and issuing queries.  Right now, this project supports all of the
-[`sqlx`][sqlx-repo] pool types via the generic [`Pool`][sqlx-pool], which
-includes PostgreSQL, MySQL, and SQLite. These can be enabled via feature
-flag.
+The abstract `Executor` is the thing ultimately responsible for actually
+connecting to a database and issuing queries.  Right now, this project
+supports all of the [`sqlx`][sqlx-repo] pool types via the generic
+[`Pool`][sqlx-pool], which includes PostgreSQL, MySQL, and SQLite. These can
+be enabled via feature flag.
 
-Supporting more third-party database crates is definitely desired!  If yours
-available here, please feel free contribute, either with a PR or feature
+Supporting more third-party crates is definitely desired!  If yours is not
+available here, please feel free to contribute, either with a PR or feature
 request.  Adding a new executor seems like it should not be hard.
 
 ## Usage
 
 Embedded migrations are prepared, built, and ran off a directory living in
-a Rust project's source.  This directory contains `.rs` and `.sql` files
+a Rust project's source.  This directory can contain `.rs` and `.sql` files
 having names matching the regex `^V(\d+)__(\w+)\.(sql|rs)$`, e.g.,
 `V13__create_a_table.sql` or `V5__create_a_different_table.rs`.
 
 The stages of a migration are handled by a few different traits, but
 implementing any of them manually is generally not necessary; `tern` exposes
-derive macros that implement them.
+derive macros that do this.
 
 * `MigrationSource`: Prepares the migrations for use in some operation by
   parsing the directory into a sorted, uniform collection, and exposing
@@ -114,8 +114,8 @@ or else not use `Migration` and parse the entire Rust source file within
 `MigrationSource` instead, which is clearly the least appealing option.
 
 This `TernMigration` is what is needed to apply the migration when combined
-with the last thing needed from the user: the actual query that should be
-ran, and how it runs in the custom context.  This is represented by the
+with the last thing required from the user: the actual query that should be
+ran and how it runs in the custom context.  This is represented by the
 `QueryBuilder` trait:
 
 ```rust

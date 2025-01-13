@@ -300,7 +300,7 @@ pub trait QueryBuilder {
     /// The context for running the migration this query is for.
     type Ctx: MigrationContext;
 
-    /// Asyncronously produce the migration query.
+    /// Asynchronously produce the migration query.
     fn build(&self, ctx: &mut Self::Ctx) -> impl Future<Output = TernResult<Query>> + Send;
 }
 
