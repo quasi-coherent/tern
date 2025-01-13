@@ -1,1 +1,5 @@
+.DS_Store
 target/
+.dir-locals.el
+.direnv/
+.envrc

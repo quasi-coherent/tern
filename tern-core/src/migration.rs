@@ -55,12 +55,12 @@ where
                 executor
                     .apply_no_tx(&query)
                     .await
-                    .void_tern_migration_result(migration.version())?;
+                    .void_tern_migration_result(migration)?;
             } else {
                 executor
                     .apply_tx(&query)
                     .await
-                    .void_tern_migration_result(migration.version())?;
+                    .void_tern_migration_result(migration)?;
             }
 
             let applied_at = Utc::now();
@@ -240,7 +240,8 @@ where
 /// A type that is used to collect a [`MigrationSet`] -- migrations that are not
 /// applied yet -- which is used as the input to runner commands.
 pub trait MigrationSource {
-    /// A migration context needed to collect migration sets.
+    /// A context that the set of migrations returned by `migration_set` would
+    /// need in order to be applied.
     type Ctx: MigrationContext;
 
     /// The set of migrations since the last apply.
@@ -296,10 +297,7 @@ where
 /// a Rust migration, and the proc macro uses it to build an implementation of
 /// [`Migration`].
 pub trait QueryBuilder {
-    /// The context for running a migration this query is built for.
-    ///
-    /// It should have all the abilities described in `MigrationContext` but in
-    /// addition can expose other behavior that is needed for a specific query.
+    /// The context for running the migration this query is for.
     type Ctx: MigrationContext;
 
     /// Asyncronously produce the migration query.
@@ -318,13 +316,17 @@ impl Query {
         &self.0
     }
 
+    // TODO(quasi-coherent): Support different types of comment syntax.
     /// Split a query comprised of multiple statements.
     ///
     /// For queries having `no_tx = true`, a migration comprised of multiple,
     /// separate SQL statements needs to be broken up so that the statements can
-    /// run indepedently.  Otherwise, many backends will run the collection of
+    /// run sequentially.  Otherwise, many backends will run the collection of
     /// statements in a transaction automatically, which breaches the `no_tx`
     /// contract.
+    ///
+    /// _Note_: This depends on comments in a .sql file being only of the `--`
+    /// flavor.  A future version will be smarter than that.
     pub fn split_statements(&self) -> TernResult<Vec<String>> {
         let mut statements = Vec::new();
         self.sql()
@@ -388,11 +390,11 @@ pub struct AppliedMigration {
     pub version: i64,
     /// The description of the migration.
     pub description: String,
-    /// An encoding of the migration file when it was applied.
+    /// The contents of the migration file at the time it was applied.
     pub content: String,
-    /// How long the migration took to run.
+    /// How long the migration took to run in milliseconds.
     pub duration_ms: i64,
-    /// When the applied migration was inserted.
+    /// The timestamp of when the migration was applied.
     pub applied_at: DateTime<Utc>,
 }
 

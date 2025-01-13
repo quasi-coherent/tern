@@ -6,10 +6,10 @@ use super::TernDeriveAttr;
 use crate::internal::ast::{Container, SkipParseAttr};
 use crate::internal::parse;
 
-/// The derive macro `MigrationSource` does most of the work.  It reads
-/// the migration sources and builds implementations of `Migration` for
-/// all of them and then associates the sorted vector of the migrations to the
-/// type deriving this via the `MigrationSource` trait implementation.
+// The derive macro `MigrationSource` does most of the work.  It reads
+// the migration sources, builds implementations of `Migration` for
+// all of them, and then associates the sorted vector of the migrations to the
+// type deriving this via the `MigrationSource` trait implementation.
 pub type MigrationSourceContainer<'a> = Container<'a, TernDeriveAttr, SkipParseAttr>;
 
 impl<'a> MigrationSourceContainer<'a> {
