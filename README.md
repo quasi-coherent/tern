@@ -20,7 +20,7 @@ migration queries written in Rust that are either statically determined or
 that need to be dynamically built at the time of being applied, while
 being agnostic to the particular choice of crate for database interaction.
 
-### Executors
+## Executors
 
 The abstract `Executor` is the type responsible for actually connecting to
 a database and issuing queries.  Right now, this project supports all of the
@@ -32,7 +32,7 @@ Supporting more third-party database crates is definitely desired!  If yours
 available here, please feel free contribute, either with a PR or feature
 request.  Adding a new executor seems like it should not be hard.
 
-### Usage
+## Usage
 
 Embedded migrations are prepared, built, and ran off a directory living in
 a Rust project's source.  This directory contains `.rs` and `.sql` files
@@ -76,7 +76,7 @@ println!("{report:#?}");
 
 For more in-depth examples, see the [examples][examples-repo].
 
-### SQL migrations
+## SQL migrations
 
 Since migrations are embedded in the final executable, and static SQL
 migrations are not Rust source, any change to a SQL migration won't force
@@ -90,7 +90,7 @@ fn main() -> {
 }
 ```
 
-### Rust migrations
+## Rust migrations
 
 Migrations can be expressed in Rust, and these can take advantage of the
 arbitrary migration context to flexibly build the query at runtime.  For
@@ -146,14 +146,14 @@ impl QueryBuilder for TernMigration {
 }
 ```
 
-### Reversible migrations
+## Reversible migrations
 
 As of now, the official stance is to not support an up-down style of
 migration set, the philosophy being that down migrations are not that useful
 in practice. The "Important Notes" section in [this][flyway-undo] flyway
 documentation summarizes our feelings well.
 
-### Database transactions
+## Database transactions
 
 By default, a migration and its accompanying schema history table update are
 ran in a database transaction.  Sometimes this is not desirable and other
@@ -181,7 +181,7 @@ use tern::Migration;
 pub struct TernMigration;
 ```
 
-### CLI
+## CLI
 
 With the feature flag "cli" enabled the type [`App`] is exported, which is a
 CLI wrapping `Runner` methods that can be imported into your own migration
