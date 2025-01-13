@@ -4,10 +4,8 @@ use syn::Result;
 
 use crate::internal::ast::{Container, ParseAttr, SkipParseAttr};
 
-/// The name of this derive macro is a complete misnomer because it doesn't
-/// derive anything, much less `Migration`, but it is capable of doing one
-/// thing, which is exposing `no_tx`, a method to tell the type deriving
-/// `MigrationContext` how to implement `Migration` for it.
+// A Rust migration needs to implements `Migration` and this helper macro
+// contributes a method `no_tx` for that.
 pub type MigrationContainer<'a> = Container<'a, MigrationAttr, SkipParseAttr>;
 
 impl<'a> MigrationContainer<'a> {

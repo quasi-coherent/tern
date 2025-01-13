@@ -18,7 +18,7 @@ use tern_core::runner::Runner;
 mod cli;
 mod commands;
 
-/// A type that can build a particular context with a database url.
+/// A type that can build a particular context given a database url.
 /// This is needed because the context is arbitrary, yet the CLI options have
 /// the database URL, which is certainly required to build it.
 pub trait ContextOptions {
@@ -28,7 +28,24 @@ pub trait ContextOptions {
     fn connect(&self, db_url: &str) -> impl Future<Output = TernResult<Self::Ctx>>;
 }
 
-/// The CLI app to run.
+/// The CLI app to run.  This wraps the functionality of the context that `Opts`
+/// creates.
+///
+/// ## Usage
+///
+/// To connect to the given database, the CLI needs a database url, which can be
+/// provided via the environment variable `DATABASE_URL` or using the option
+/// `-D/--database-url` available to a command/subcommand.
+///
+/// ```terminal
+/// > $ my-app --help
+/// Usage: my-app <COMMAND>
+///
+/// Commands:
+///   migrate  Operations on the set of migration files
+///   history  Operations on the table storing the history of these migrations
+///   help     Print this message or the help of the given subcommand(s)
+/// ```
 pub struct App<Opts> {
     opts: Opts,
     cli: cli::Tern,

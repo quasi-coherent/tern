@@ -113,7 +113,7 @@ where
 
     #[allow(dead_code)]
     pub fn is_option(&self) -> bool {
-        matches!(self.ty, syn::Type::Path(p) if p.path.segments.first().map_or(false, |s| s.ident == "Option"))
+        matches!(self.ty, syn::Type::Path(p) if p.path.segments.first().is_some_and(|s| s.ident == "Option"))
     }
 }
 

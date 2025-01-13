@@ -1,8 +1,8 @@
 use std::error::Error as StdError;
 
-use crate::migration::{AppliedMigration, Migration};
-use crate::runner::MigrationResult;
+use crate::migration::{Migration, MigrationId};
 
+/// Alias for a result whose error type is [`Error`].
 pub type TernResult<T> = Result<T, Error>;
 type BoxDynError = Box<dyn StdError + Send + Sync + 'static>;
 
@@ -15,8 +15,8 @@ pub enum Error {
     #[error("error applying migrations {0}")]
     Execute(#[source] BoxDynError),
     /// Error from one migration.
-    #[error("error applying migration {1}: {0}")]
-    ExecuteMigration(#[source] BoxDynError, i64),
+    #[error("error applying migration {{name: {1}, no_tx: {2}}}: {0}")]
+    ExecuteMigration(#[source] BoxDynError, MigrationId, bool),
     /// Error resolving query before migration.
     #[error("runtime could not resolve query {0}")]
     ResolveQuery(String),
@@ -45,10 +45,10 @@ pub enum Error {
 /// Converting a result with a generic `std::error::Error` to one with this
 /// crate's error type.
 pub trait DatabaseError<T, E> {
-    fn void_tern_result(self) -> TernResult<()>;
-    fn void_tern_migration_result(self, version: i64) -> TernResult<()>;
     fn tern_result(self) -> TernResult<T>;
-    fn tern_migration_result(self, version: i64) -> TernResult<T>;
+    fn void_tern_result(self) -> TernResult<()>;
+    fn tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<T>;
+    fn void_tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<()>;
 }
 
 impl<T, E> DatabaseError<T, E> for Result<T, E>
@@ -62,9 +62,13 @@ where
         }
     }
 
-    fn void_tern_migration_result(self, version: i64) -> TernResult<()> {
+    fn void_tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<()> {
         match self {
-            Err(e) => Err(Error::ExecuteMigration(Box::new(e), version)),
+            Err(e) => Err(Error::ExecuteMigration(
+                Box::new(e),
+                migration.migration_id(),
+                migration.no_tx(),
+            )),
             _ => Ok(()),
         }
     }
@@ -76,33 +80,14 @@ where
         }
     }
 
-    fn tern_migration_result(self, version: i64) -> TernResult<T> {
+    fn tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<T> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(Error::ExecuteMigration(Box::new(e), version)),
-        }
-    }
-}
-
-/// Converting the `Result<AppliedMigration, E>` of a migration attempt to the
-/// pretty-printable `MigrationResult` (which combines Ok/Err).
-pub trait ToMigrationResult<E> {
-    fn to_migration_result<M>(self, migration: &M) -> MigrationResult
-    where
-        M: Migration + ?Sized;
-}
-
-impl<E> ToMigrationResult<E> for Result<AppliedMigration, E>
-where
-    E: StdError + Send + Sync + 'static,
-{
-    fn to_migration_result<M>(self, migration: &M) -> MigrationResult
-    where
-        M: Migration + ?Sized,
-    {
-        match self {
-            Ok(applied) => MigrationResult::from_applied(&applied, Some(migration.no_tx())),
-            Err(e) => MigrationResult::from_failed(migration, e.to_string()),
+            Err(e) => Err(Error::ExecuteMigration(
+                Box::new(e),
+                migration.migration_id(),
+                migration.no_tx(),
+            )),
         }
     }
 }

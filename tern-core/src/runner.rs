@@ -1,15 +1,16 @@
 //! A migration runner for a context.
 //!
-//! The [`Runner`] type accepts any [`MigrationContext`].  With that, it exposes
-//! a method for any operation a migration run would need.
+//! The [`Runner`] type accepts any [`MigrationContext`] and exposes the methods
+//! needed for tasks related to database migrations.
 //!
-//! Each method also exists as a command or subcommand of the CLI.
+//! Each method also exists as a (sub)command of the `App`, available with the
+//! feature flag "cli" enabled.
 use chrono::{DateTime, Utc};
 
-use crate::error::{TernResult, ToMigrationResult as _};
+use crate::error::{DatabaseError as _, TernResult};
 use crate::migration::{AppliedMigration, Migration, MigrationContext};
 
-/// Run migrations in the chosen context.
+/// Run operations on a set of migrations for the chosen context.
 pub struct Runner<C: MigrationContext> {
     context: C,
 }
@@ -37,15 +38,8 @@ where
                 .context
                 .apply(migration.as_ref())
                 .await
-                .to_migration_result(migration.as_ref());
-
-            if result.is_error() {
-                log::error!("error applying migration {id} {}", result.error_reason());
-                results.push(result);
-                let report = Report::new(results);
-
-                return Ok(report);
-            }
+                .tern_migration_result(migration.as_ref())
+                .map(|v| MigrationResult::from_applied(&v, Some(migration.no_tx())))?;
 
             results.push(result);
         }
@@ -54,7 +48,7 @@ where
         Ok(report)
     }
 
-    /// Return the migration set that would be applied without the `dryrun`.
+    /// Return the migration set that would be applied by `apply_all`.
     pub async fn dryrun(&mut self) -> TernResult<Report> {
         self.context.check_history_table().await?;
         let latest = self.context.latest_version().await?;
@@ -95,11 +89,12 @@ where
         self.context.drop_history_table().await
     }
 
-    /// Run a "soft apply" for the supplied range of migration versions.  This
-    /// means that the migration will be saved in the history table, but will
-    /// not have its query applied.  This is useful in the case where you want
-    /// to change migration tables, or migrate from a different migration tool
-    /// to this one, etc.
+    /// Run a "soft apply" for the supplied range of migration versions.
+    ///
+    /// This means that the migration will be saved in the history table, but
+    /// will not have its query applied.  This is useful in the case where you
+    /// want to change migration tables, apply a patch to the current one,
+    /// migrate from a different migration tool, etc.
     ///
     /// If `from_version` (resp. `to_version`) is `None`, this will soft apply
     /// starting at the first migration (resp. ending with the last migration).
@@ -166,7 +161,6 @@ pub struct MigrationResult {
     content: String,
     transactional: Transactional,
     duration_ms: RunDuration,
-    error_reason: MigrationErrors,
 }
 
 impl MigrationResult {
@@ -177,11 +171,10 @@ impl MigrationResult {
             applied_at: Some(applied.applied_at),
             description: applied.description.clone(),
             content: Self::truncate_content(&applied.content),
-            transactional: no_tx.map(Transactional::from_boolean).unwrap_or(
-                Transactional::NotApplicable("Previously applied".to_string()),
-            ),
+            transactional: no_tx
+                .map(Transactional::from_boolean)
+                .unwrap_or(Transactional::Other("Previously applied".to_string())),
             duration_ms: RunDuration::Duration(applied.duration_ms),
-            error_reason: MigrationErrors::None,
         }
     }
 
@@ -192,9 +185,8 @@ impl MigrationResult {
             applied_at: Some(applied.applied_at),
             description: applied.description.clone(),
             content: Self::truncate_content(&applied.content),
-            transactional: Transactional::NotApplicable("Soft applied".to_string()),
+            transactional: Transactional::Other("Soft applied".to_string()),
             duration_ms: RunDuration::Duration(applied.duration_ms),
-            error_reason: MigrationErrors::None,
         }
     }
 
@@ -210,32 +202,7 @@ impl MigrationResult {
             content: Self::truncate_content(&migration.content()),
             transactional: Transactional::from_boolean(migration.no_tx()),
             duration_ms: RunDuration::Unapplied,
-            error_reason: MigrationErrors::None,
         }
-    }
-
-    pub(crate) fn from_failed<M>(migration: &M, message: String) -> Self
-    where
-        M: Migration + ?Sized,
-    {
-        Self {
-            version: migration.version(),
-            state: MigrationState::Failed,
-            applied_at: None,
-            description: migration.migration_id().description(),
-            content: Self::truncate_content(&migration.content()),
-            transactional: Transactional::from_boolean(migration.no_tx()),
-            duration_ms: RunDuration::Unapplied,
-            error_reason: MigrationErrors::Message(message),
-        }
-    }
-
-    fn is_error(&self) -> bool {
-        self.state == MigrationState::Failed
-    }
-
-    fn error_reason(&self) -> String {
-        format!("{}", self.error_reason)
     }
 
     fn truncate_content(content: &str) -> String {
@@ -249,14 +216,13 @@ enum MigrationState {
     Applied,
     SoftApplied,
     Unapplied,
-    Failed,
 }
 
 #[derive(Debug, Clone)]
 enum Transactional {
     NoTransaction,
     InTransaction,
-    NotApplicable(String),
+    Other(String),
 }
 
 impl Transactional {
@@ -274,18 +240,12 @@ enum RunDuration {
     Unapplied,
 }
 
-#[derive(Debug, Clone)]
-enum MigrationErrors {
-    Message(String),
-    None,
-}
-
 impl std::fmt::Display for Transactional {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoTransaction => write!(f, "NO_TRANSACTION"),
             Self::InTransaction => write!(f, "IN_TRANSACTION"),
-            Self::NotApplicable(s) => write!(f, "{s}"),
+            Self::Other(s) => write!(f, "{s}"),
         }
     }
 }
@@ -296,7 +256,6 @@ impl std::fmt::Display for MigrationState {
             Self::Applied => write!(f, "APPLIED"),
             Self::SoftApplied => write!(f, "SOFT_APPLIED"),
             Self::Unapplied => write!(f, "UNAPPLIED"),
-            Self::Failed => write!(f, "FAILED"),
         }
     }
 }
@@ -306,15 +265,6 @@ impl std::fmt::Display for RunDuration {
         match self {
             Self::Duration(ms) => write!(f, "{}ms", ms),
             Self::Unapplied => write!(f, "UNAPPLIED"),
-        }
-    }
-}
-
-impl std::fmt::Display for MigrationErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Message(e) => write!(f, "{}", e),
-            Self::None => write!(f, "SUCCESS"),
         }
     }
 }

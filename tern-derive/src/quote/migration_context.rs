@@ -5,9 +5,9 @@ use syn::Result;
 use super::TernDeriveAttr;
 use crate::internal::ast::{Container, ParseAttr};
 
-/// Derive `MigrationContext`.  This assumes that the type implements
-/// `MigrationSource`, which can be done with the macro for it in this crate,
-/// but it's more flexible to split them into two macros.
+// Derive `MigrationContext`.  This assumes that the type implements
+// `MigrationSource`, which can be done with the macro for it in this crate,
+// but it's more flexible to split them into two macros.
 pub type MigrationContextContainer<'a> = Container<'a, TernDeriveAttr, MigrationContextFieldAttr>;
 
 impl<'a> MigrationContextContainer<'a> {

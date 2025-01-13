@@ -34,7 +34,7 @@ args = ["doc", "--workspace", "--all-features", "--no-deps"]
 
 [tasks.readme]
 command = "cargo"
-args = ["rdme", "--force", "-w", "tern"]
+args = ["rdme", "--force", "-w", "tern", "--intralinks-strip-links"]
 
 [tasks.pgenv]
 command = "docker"

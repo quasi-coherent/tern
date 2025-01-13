@@ -29,27 +29,25 @@ pub struct History {
 
 #[derive(Debug, Parser)]
 pub enum MigrateCommands {
-    /// Run any available unapplied migrations.
+    /// Run any available unapplied migrations
     ApplyAll {
-        /// List the migrations to be applied without applying them.
+        /// List the migrations to be applied without applying them
         #[arg(short, long)]
         dryrun: bool,
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
-    /// List previously applied migrations.
+    /// List previously applied migrations
     ListApplied {
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
-    /// Create a new migration with an auto-selected version and the given
-    /// description.
+    /// Create a migration with the description and an auto-selected version
     New {
         description: String,
-        /// If `true`, the annotation for not running the migration in a
-        /// transaction will be added to the generated file.
+        /// If `true`, annotate the migration to not run in a transaction
         no_tx: bool,
-        /// Whether to create a SQL or Rust migration.
+        /// Whether to create a SQL or Rust migration
         #[arg(long = "type", value_enum)]
         migration_type: MigrationType,
         #[clap(flatten)]
@@ -59,26 +57,22 @@ pub enum MigrateCommands {
 
 #[derive(Debug, Parser)]
 pub enum HistoryCommands {
-    /// Create the schema history table.
+    /// Create the schema history table
     Init {
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
-    /// Drop the schema history table.
+    /// Drop the schema history table
     Drop {
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
-    /// Do a "soft" apply of all migrations in the specified range.
-    /// A soft apply will add the migration to the schema history table but
-    /// without running the query for the migration.
+    /// Update/insert the migration into history without applying
     SoftApply {
-        /// The version to start the soft apply with.
-        /// If not provided, the first migration is where the soft apply starts.
+        /// The version to start the soft apply with (defaults to the first)
         #[arg(long)]
         from_version: Option<i64>,
-        /// The version to end the soft apply with.
-        /// If not provided, the last migration is where the soft apply ends.
+        /// The version to end the soft apply with (defaults to the last)
         #[arg(long)]
         to_version: Option<i64>,
         #[clap(flatten)]
