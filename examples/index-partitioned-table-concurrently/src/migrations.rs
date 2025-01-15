@@ -38,7 +38,8 @@ WHERE
     }
 }
 
-/// To be able to use this with the CLI.
+/// To be able to use this with the CLI, it needs to know how to build a generic
+/// migration context given a connection string, so `ContextOptions` does this.
 pub struct PgContextOptions;
 
 impl ContextOptions for PgContextOptions {
@@ -49,8 +50,7 @@ impl ContextOptions for PgContextOptions {
     }
 }
 
-/// A row in the system table `pg_inherits` that we'll query to get the current
-/// list of child partitions of the partitioned table.
+/// A record from the result of the query above.
 #[derive(sqlx::FromRow)]
 pub struct Partition {
     relnamespace: String,

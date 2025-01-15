@@ -8,7 +8,7 @@ use super::{Partition, PgMigrationContext};
 const PARENT_IDX_NAME: &str = "example_partitioned_name_email_dx";
 
 /// This migration can't run in a transaction because that would defeat the
-/// purpose of creating an index concurrently.
+/// purpose of creating an index concurrently, thus the `no_transaction`.
 #[derive(Migration)]
 #[tern(no_transaction)]
 pub struct TernMigration;
@@ -40,6 +40,7 @@ ALTER INDEX example.{PARENT_IDX_NAME} ATTACH PARTITION example.{idx_name};
 }
 
 impl QueryBuilder for TernMigration {
+    /// Building the query for this specific context.
     type Ctx = PgMigrationContext;
 
     async fn build(&self, ctx: &mut PgMigrationContext) -> TernResult<Query> {

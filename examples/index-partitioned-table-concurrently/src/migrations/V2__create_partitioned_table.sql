@@ -28,12 +28,3 @@ SELECT
   partman.create_parent(p_parent_table := 'example.partitioned', p_template_table :=
     'example.partitioned_template', p_control := 'created_at', p_interval := '1 week', p_type :=
     'range');
-
-SELECT
-  b.relnamespace::regnamespace::text AS schema,
-  b.relname AS name
-FROM
-  pg_catalog.pg_inherits a
-  JOIN pg_catalog.pg_class b ON a.inhrelid = b.oid
-WHERE
-  inhparent = 'example.partitioned'::regclass
