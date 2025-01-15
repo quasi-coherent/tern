@@ -40,7 +40,7 @@ pub fn migration(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///
 /// The macro exposes one one optional field attribute:
 ///
-/// * `executor_via` decorates the field of holding an [`Executor`], which is
+/// * `executor_via` decorates the field holding an [`Executor`], which is
 ///   required of the type to be a context.  If not specified then it is
 ///   expected that the type itself implements `Executor`.
 ///

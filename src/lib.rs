@@ -41,8 +41,7 @@
 //!
 //! ```rust,no_run
 //! # async fn asdf() -> String {
-//! use tern::executor::SqlxPgExecutor;
-//! use tern::{MigrationSource, MigrationContext, Runner};
+//! use tern::{MigrationSource, MigrationContext, Runner, SqlxPgExecutor};
 //!
 //! /// `$CARGO_MANIFEST_DIR/src/migrations` is a collection of migration files.
 //! /// The optional `table` attribute permits a custom location for a migration
@@ -110,9 +109,8 @@
 //! [`QueryBuilder`] trait:
 //!
 //! ```rust,no_run
+//! use tern::{Query, QueryBuilder, Migration};
 //! use tern::error::TernResult;
-//! use tern::migration::{Query, QueryBuilder};
-//! use tern::Migration;
 //!
 //! use super::Example;
 //!
@@ -201,6 +199,7 @@
 //! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
 //! [`QueryBuilder`]: crate::QueryBuilder
 //! [flyway-undo]: https://documentation.red-gate.com/fd/migrations-184127470.html#Migrations-UndoMigrations
+//! [`App`]: crate::App
 
 #[doc(inline)]
 pub use tern_core::error::{self, DatabaseError, Error, TernResult};

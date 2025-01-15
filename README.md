@@ -52,8 +52,7 @@ derive macros that do this.
 Put together, it looks like this.
 
 ```rust
-use tern::executor::SqlxPgExecutor;
-use tern::{MigrationSource, MigrationContext, Runner};
+use tern::{MigrationSource, MigrationContext, Runner, SqlxPgExecutor};
 
 /// `$CARGO_MANIFEST_DIR/src/migrations` is a collection of migration files.
 /// The optional `table` attribute permits a custom location for a migration
@@ -119,9 +118,8 @@ ran and how it runs in the custom context.  This is represented by the
 `QueryBuilder` trait:
 
 ```rust
+use tern::{Query, QueryBuilder, Migration};
 use tern::error::TernResult;
-use tern::migration::{Query, QueryBuilder};
-use tern::Migration;
 
 use super::Example;
 
@@ -183,7 +181,7 @@ pub struct TernMigration;
 
 ## CLI
 
-With the feature flag "cli" enabled the type [`App`] is exported, which is a
+With the feature flag "cli" enabled the type `App` is exported, which is a
 CLI wrapping `Runner` methods that can be imported into your own migration
 project to turn it into a CLI.
 
