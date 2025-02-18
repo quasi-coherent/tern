@@ -78,10 +78,7 @@ impl MigrationSetContainer {
         let migration_dir = parse::cargo_manifest_dir().join(src);
         let migrations = parse::MigrationSource::from_migration_dir(migration_dir)
             .map_err(|e| {
-                syn::Error::new(
-                    ident.span(),
-                    format!("error parsing migration source directory {e:?}"),
-                )
+                syn::Error::new(ident.span(), format!("error with migration source: {e:?}"))
             })?
             .into_iter()
             .map(MigrationContainer::from)

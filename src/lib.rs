@@ -1,5 +1,3 @@
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
 //! A database migration library and CLI supporting embedded migrations written
 //! in SQL or Rust.
 //!
@@ -200,6 +198,7 @@
 //! [`QueryBuilder`]: crate::QueryBuilder
 //! [flyway-undo]: https://documentation.red-gate.com/fd/migrations-184127470.html#Migrations-UndoMigrations
 //! [`App`]: crate::App
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[doc(inline)]
 pub use tern_core::error::{self, DatabaseError, Error, TernResult};
@@ -226,6 +225,15 @@ pub use tern_core::executor::sqlx_backend::postgres::SqlxPgExecutor;
 #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_sqlite")))]
 #[doc(inline)]
 pub use tern_core::executor::sqlx_backend::sqlite::SqlxSqliteExecutor;
+
+pub mod executor {
+    #[cfg(feature = "sqlx_mysql")]
+    pub use super::SqlxMySqlExecutor;
+    #[cfg(feature = "sqlx_postgres")]
+    pub use super::SqlxPgExecutor;
+    #[cfg(feature = "sqlx_sqlite")]
+    pub use super::SqlxSqliteExecutor;
+}
 
 pub mod future {
     //! `futures` re-exports.
