@@ -103,7 +103,7 @@
 //!
 //! This `TernMigration` is what is needed to apply the migration when combined
 //! with the last thing required from the user: the actual query that should be
-//! ran and how it runs in the custom context.  This is represented by the
+//! ran and how it is built in the custom context.  This is represented by the
 //! [`QueryBuilder`] trait:
 //!
 //! ```rust,no_run
