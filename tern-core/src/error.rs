@@ -17,29 +17,26 @@ pub enum Error {
     /// Error from one migration.
     #[error("error applying migration {{name: {1}, no_tx: {2}}}: {0}")]
     ExecuteMigration(#[source] BoxDynError, MigrationId, bool),
-    /// Error resolving query before migration.
+    /// An error resolving the query before applying.
+    /// Can be used as a fallthrough to map arbitrary error types to when
+    /// implementing `QueryBuilder`.
     #[error("runtime could not resolve query {0}")]
     ResolveQuery(String),
     /// Error processing a migration source.
     #[error("could not parse migration query {0}")]
     Sql(#[from] std::fmt::Error),
-    /// A migration found in schema history is missing from the source.
-    #[error("migration {0} applied but missing in source")]
-    VersionMissing(i64),
-    /// The migration content has changed between runs.
-    #[error("migration {0} modified since apply: applied {1}, source {2}")]
-    VersionModified(i64, String, String),
-    /// A version specified does not exist in the source.
-    #[error("version {0} not found in source")]
-    VersionNotPresent(i64),
-    /// A version specified is older than would be valid
-    /// for the operation requested.
-    #[error("version {0} too old for the requested operation")]
-    VersionTooOld(i64),
-    /// A version specified is newer than would be valid
-    /// for the operation requested.
-    #[error("version {0} too new for the requested operation")]
-    VersionTooNew(i64),
+    /// Local migration source has fewer migrations than the history table.
+    #[error("migration source has {0} migrations but {1} have been applied")]
+    MissingSource(i64, i64),
+}
+
+impl Error {
+    pub fn to_resolve_query_error<E>(e: E) -> Self
+    where
+        E: std::fmt::Display,
+    {
+        Self::ResolveQuery(e.to_string())
+    }
 }
 
 /// Converting a result with a generic `std::error::Error` to one with this

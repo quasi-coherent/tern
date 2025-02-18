@@ -65,7 +65,7 @@ where
 
             let applied_at = Utc::now();
             let duration_ms = start.elapsed().as_millis() as i64;
-            let applied = migration.to_applied(duration_ms, applied_at);
+            let applied = migration.to_applied(duration_ms, applied_at, query.sql());
             executor
                 .insert_applied_migration(Self::HISTORY_TABLE, &applied)
                 .await?;
@@ -216,7 +216,8 @@ where
     /// Get the `MigrationId` for this migration.
     fn migration_id(&self) -> MigrationId;
 
-    /// The raw file content of the migration source file.
+    /// The raw file content of the migration source file, or when stored as an
+    /// applied migration in the history table, it is the query that was ran.
     fn content(&self) -> String;
 
     /// Whether this migration should not be applied in a database transaction.
@@ -232,8 +233,13 @@ where
 
     /// Convert this migration to an [`AppliedMigration`] assuming that it was
     /// successfully applied.
-    fn to_applied(&self, duration_ms: i64, applied_at: DateTime<Utc>) -> AppliedMigration {
-        AppliedMigration::new(self.migration_id(), self.content(), duration_ms, applied_at)
+    fn to_applied(
+        &self,
+        duration_ms: i64,
+        applied_at: DateTime<Utc>,
+        content: &str,
+    ) -> AppliedMigration {
+        AppliedMigration::new(self.migration_id(), content, duration_ms, applied_at)
     }
 }
 
@@ -277,6 +283,14 @@ where
         self.migrations
             .iter()
             .map(|m| m.version())
+            .collect::<Vec<_>>()
+    }
+
+    /// The version/name of migrations in this migration set.
+    pub fn migration_ids(&self) -> Vec<MigrationId> {
+        self.migrations
+            .iter()
+            .map(|m| m.migration_id())
             .collect::<Vec<_>>()
     }
 
@@ -350,7 +364,7 @@ impl Query {
 }
 
 /// Name/version derived from the migration source filename.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct MigrationId {
     /// Version parsed from the migration filename.
     version: i64,
@@ -381,6 +395,15 @@ impl std::fmt::Display for MigrationId {
     }
 }
 
+impl From<AppliedMigration> for MigrationId {
+    fn from(value: AppliedMigration) -> Self {
+        Self {
+            version: value.version,
+            description: value.description,
+        }
+    }
+}
+
 /// An `AppliedMigration` is the information about a migration that completed
 /// successfully and it is also a row in the schema history table.
 #[derive(Debug, Clone)]
@@ -401,14 +424,14 @@ pub struct AppliedMigration {
 impl AppliedMigration {
     pub fn new(
         id: MigrationId,
-        content: String,
+        content: &str,
         duration_ms: i64,
         applied_at: DateTime<Utc>,
     ) -> Self {
         Self {
             version: id.version,
             description: id.description,
-            content,
+            content: content.into(),
             duration_ms,
             applied_at,
         }

@@ -29,6 +29,17 @@ where
         let latest = self.context.latest_version().await?;
         let set = self.context.migration_set(latest);
 
+        // Check that the local migration set does not have fewer than what
+        // has been applied according to the history table.
+        // The derive macro already checked that the local migrations are sound
+        // in that there are no duplicates or gaps in version.
+        let set_latest = set.max();
+        if let (Some(remote_last), Some(local_last)) = (latest, set_latest) {
+            if local_last < remote_last {
+                return Err(crate::error::Error::MissingSource(local_last, remote_last));
+            }
+        }
+
         let mut results = Vec::new();
         for migration in &set.migrations {
             let id = migration.migration_id();
@@ -54,9 +65,21 @@ where
         let latest = self.context.latest_version().await?;
         let set = self.context.migration_set(latest);
 
+        // Validate source versions more than macros can.
+        let set_latest = set.max();
+        if let (Some(remote_last), Some(local_last)) = (latest, set_latest) {
+            if local_last < remote_last {
+                return Err(crate::error::Error::MissingSource(local_last, remote_last));
+            }
+        }
+
         let mut unapplied = Vec::new();
         for migration in &set.migrations {
-            unapplied.push(MigrationResult::from_unapplied(migration.as_ref()))
+            let query = migration.build(&mut self.context).await?;
+            unapplied.push(MigrationResult::from_unapplied(
+                migration.as_ref(),
+                query.sql(),
+            ))
         }
         let report = Report::new(unapplied);
 
@@ -122,7 +145,7 @@ where
                 break;
             }
 
-            let applied = migration.to_applied(0, Utc::now());
+            let applied = migration.to_applied(0, Utc::now(), "SELECT 1;");
             self.context.upsert_applied(&applied).await?;
             let result = MigrationResult::from_soft_applied(&applied);
             results.push(result);
@@ -170,7 +193,7 @@ impl MigrationResult {
             state: MigrationState::Applied,
             applied_at: Some(applied.applied_at),
             description: applied.description.clone(),
-            content: Self::truncate_content(&applied.content),
+            content: applied.content.clone(),
             transactional: no_tx
                 .map(Transactional::from_boolean)
                 .unwrap_or(Transactional::Other("Previously applied".to_string())),
@@ -184,13 +207,13 @@ impl MigrationResult {
             state: MigrationState::SoftApplied,
             applied_at: Some(applied.applied_at),
             description: applied.description.clone(),
-            content: Self::truncate_content(&applied.content),
+            content: applied.content.clone(),
             transactional: Transactional::Other("Soft applied".to_string()),
             duration_ms: RunDuration::Duration(applied.duration_ms),
         }
     }
 
-    pub(crate) fn from_unapplied<M>(migration: &M) -> Self
+    pub(crate) fn from_unapplied<M>(migration: &M, content: &str) -> Self
     where
         M: Migration + ?Sized,
     {
@@ -199,15 +222,10 @@ impl MigrationResult {
             state: MigrationState::Unapplied,
             applied_at: None,
             description: migration.migration_id().description(),
-            content: Self::truncate_content(&migration.content()),
+            content: content.into(),
             transactional: Transactional::from_boolean(migration.no_tx()),
             duration_ms: RunDuration::Unapplied,
         }
-    }
-
-    fn truncate_content(content: &str) -> String {
-        let res = content.lines().take(10).collect::<Vec<_>>().join("\n") + "...";
-        res.to_string()
     }
 }
 

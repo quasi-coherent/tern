@@ -6,6 +6,7 @@
 //! [tern-docs]: https://docs.rs/crate/tern/latest
 //! [Executor]: self::executor::Executor
 //! [executor]: self::executor
+#![cfg_attr(docsrs, feature(doc_cfg))]
 pub mod error;
 pub mod executor;
 pub mod migration;
