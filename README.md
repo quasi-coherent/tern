@@ -173,7 +173,7 @@ For a Rust migration:
 ```rust
 use tern::Migration;
 
-/// Don't run this in a migration.
+/// Don't run this migration in a transaction.
 #[derive(Migration)]
 #[tern(no_transaction)]
 pub struct TernMigration;
