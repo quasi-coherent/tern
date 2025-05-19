@@ -8,8 +8,11 @@ async fn main() {
 
     let app = App::new(PgContextOptions);
 
-    if let Err(e) = app.run().await {
-        log::error!("{e}");
-        std::process::exit(1);
+    match app.run().await {
+        Err(e) => log::error!("{e}"),
+        Ok(Some(report)) => report
+            .iter_results()
+            .for_each(|result| log::info!("{result}")),
+        Ok(_) => log::info!("OK"),
     }
 }

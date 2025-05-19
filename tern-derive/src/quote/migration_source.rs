@@ -104,11 +104,11 @@ impl MigrationSetContainer {
 
                 fn migration_set(
                     &self,
-                    latest_version: Option<i64>,
+                    last_applied: Option<i64>,
                 ) -> ::tern::migration::MigrationSet<Self::Ctx>
                 {
                     let all: Vec<Box<dyn ::tern::migration::Migration<Ctx = Self::Ctx>>> = vec![#(#boxed_migrations),*];
-                    let Some(v) = latest_version else {
+                    let Some(v) = last_applied else {
                         return ::tern::migration::MigrationSet::new(all);
                     };
                     let migrations: Vec<Box<dyn ::tern::migration::Migration<Ctx = Self::Ctx>>> = all
@@ -249,9 +249,7 @@ impl MigrationContainer {
                 ctx: &'a mut Self::Ctx,
             ) -> ::tern::future::BoxFuture<'a, ::tern::error::TernResult<::tern::migration::Query>>
             {
-                Box::pin(async move {
-                    <Self as ::tern::migration::QueryBuilder>::build(self, ctx).await
-                })
+                Box::pin(<Self as ::tern::migration::QueryBuilder>::build(self, ctx))
             }
         }
     }

@@ -10,13 +10,13 @@
 //!   and it can produce the migrations from source.  Combined, it has the full
 //!   functionality of the migration tool.
 //!
-//! Generally these don't need to be implemented.  Their corresponding derive
-//! macros can be used instead.
-use chrono::{DateTime, Utc};
-use futures_core::{future::BoxFuture, Future};
-use std::{fmt::Write, time::Instant};
-
+//! Generally these shouldn't be implemented; use the corresponding derive macro
+//! instead.
 use crate::error::{DatabaseError as _, TernResult};
+
+use chrono::{DateTime, Utc};
+use futures_core::{Future, future::BoxFuture};
+use std::{fmt::Write, time::Instant};
 
 /// The context in which a migration run occurs.
 pub trait MigrationContext
@@ -77,8 +77,8 @@ where
     /// Gets the version of the most recently applied migration.
     fn latest_version(&mut self) -> BoxFuture<'_, TernResult<Option<i64>>> {
         Box::pin(async move {
-            let executor = self.executor();
-            let latest = executor
+            let latest = self
+                .executor()
                 .get_all_applied(Self::HISTORY_TABLE)
                 .await?
                 .into_iter()
@@ -94,34 +94,31 @@ where
 
     /// Get all previously applied migrations.
     fn previously_applied(&mut self) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
-        Box::pin(async move {
-            let executor = self.executor();
-            let applied = executor.get_all_applied(Self::HISTORY_TABLE).await?;
-
-            Ok(applied)
-        })
+        Box::pin(self.executor().get_all_applied(Self::HISTORY_TABLE))
     }
 
     /// Check that the history table exists and create it if not.
     fn check_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
-        Box::pin(async move {
-            let executor = self.executor();
-            executor
-                .create_history_if_not_exists(Self::HISTORY_TABLE)
-                .await?;
-
-            Ok(())
-        })
+        Box::pin(
+            self.executor()
+                .create_history_if_not_exists(Self::HISTORY_TABLE),
+        )
     }
 
     /// Drop the history table if requested.
     fn drop_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
-        Box::pin(async move {
-            let executor = self.executor();
-            executor.drop_history(Self::HISTORY_TABLE).await?;
+        Box::pin(self.executor().drop_history(Self::HISTORY_TABLE))
+    }
 
-            Ok(())
-        })
+    /// Insert an applied migration.
+    fn insert_applied<'migration, 'conn: 'migration>(
+        &'conn mut self,
+        applied: &'migration AppliedMigration,
+    ) -> BoxFuture<'migration, TernResult<()>> {
+        Box::pin(
+            self.executor()
+                .insert_applied_migration(Self::HISTORY_TABLE, applied),
+        )
     }
 
     /// Upsert applied migrations.
@@ -129,13 +126,10 @@ where
         &'conn mut self,
         applied: &'migration AppliedMigration,
     ) -> BoxFuture<'migration, TernResult<()>> {
-        Box::pin(async move {
+        Box::pin(
             self.executor()
-                .upsert_applied_migration(Self::HISTORY_TABLE, applied)
-                .await?;
-
-            Ok(())
-        })
+                .upsert_applied_migration(Self::HISTORY_TABLE, applied),
+        )
     }
 }
 
@@ -250,8 +244,8 @@ pub trait MigrationSource {
     /// need in order to be applied.
     type Ctx: MigrationContext;
 
-    /// The set of migrations since the last apply.
-    fn migration_set(&self, latest_version: Option<i64>) -> MigrationSet<Self::Ctx>;
+    /// The set of migrations since `last_applied`.
+    fn migration_set(&self, last_applied: Option<i64>) -> MigrationSet<Self::Ctx>;
 }
 
 /// The `Migration`s derived from the files in the source directory that need to
@@ -319,18 +313,56 @@ pub trait QueryBuilder {
 }
 
 /// A SQL query.
-pub struct Query(String);
+#[derive(Debug, Clone)]
+pub struct Query(pub(crate) String);
 
 impl Query {
     pub fn new(sql: String) -> Self {
         Self(sql)
     }
 
+    fn sanitize(&self) -> String {
+        use regex::Regex;
+        let block_comment = Regex::new(r"\/\*(?s).*?(?-s)\*\/").unwrap();
+        let sql = self
+            .sql()
+            .trim()
+            .lines()
+            .filter(|line| {
+                let line = line.trim();
+                !line.starts_with("--") || line.is_empty()
+            })
+            .map(|line| {
+                // Remove trailing comments: "SELECT a -- like this"
+                let mut stripped = line.to_string();
+                let offset = stripped.find("--").unwrap_or(stripped.len());
+                stripped.replace_range(offset.., "");
+                stripped.trim_end().to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let stripped = block_comment.replace_all(&sql, "");
+
+        if !stripped.ends_with(";") {
+            format!("{stripped};")
+        } else {
+            stripped.to_string()
+        }
+    }
+
     pub fn sql(&self) -> &str {
         &self.0
     }
 
-    // TODO(quasi-coherent): Support different types of comment syntax.
+    /// Add another query to the end of this one.
+    pub fn append(&mut self, other: Self) -> TernResult<()> {
+        let mut buf = String::new();
+        writeln!(buf, "{}", self.0)?;
+        writeln!(buf, "{}", other.0)?;
+        self.0 = buf;
+        Ok(())
+    }
+
     /// Split a query comprised of multiple statements.
     ///
     /// For queries having `no_tx = true`, a migration comprised of multiple,
@@ -339,19 +371,25 @@ impl Query {
     /// statements in a transaction automatically, which breaches the `no_tx`
     /// contract.
     ///
-    /// _Note_: This depends on comments in a .sql file being only of the `--`
-    /// flavor.  A future version will be smarter than that.
+    /// _Warning_: This is sensitive to the particular character sequence for
+    /// writing comments.  Only `--` and C-style `/* ... */` are treated
+    /// correctly because this is valid comment syntax in any of the supported
+    /// backends.  A line starting with `#`, for instance, will not be treated as
+    /// a comment, and so only in MySQL where that does denote a comment, the
+    /// function may not separate multiple statements correctly, possibly leading
+    /// to syntax errors during query execution.
     pub fn split_statements(&self) -> TernResult<Vec<String>> {
         let mut statements = Vec::new();
-        self.sql()
+        self.sanitize()
             .lines()
             .try_fold(String::new(), |mut buf, line| {
-                let line = line.trim();
+                if line.trim().is_empty() {
+                    return Ok(buf);
+                }
                 writeln!(buf, "{line}")?;
-                // If a line ends with `;` and is not a comment, this is the
-                // last line of the statement.  So push to `statements` and
-                // reset the buffer for parsing the next statement.
-                if line.ends_with(";") && !line.starts_with("--") {
+                // If the line ends with `;` this is the end of the statement, so
+                // push the accumulated buffer to the vector and start a new one.
+                if line.ends_with(";") {
                     statements.push(buf);
                     Ok::<String, std::fmt::Error>(String::new())
                 } else {
@@ -363,8 +401,14 @@ impl Query {
     }
 }
 
+impl std::fmt::Display for Query {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// Name/version derived from the migration source filename.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct MigrationId {
     /// Version parsed from the migration filename.
     version: i64,
@@ -435,5 +479,81 @@ impl AppliedMigration {
             duration_ms,
             applied_at,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Query;
+
+    const SQL_IN1: &str = "
+-- This is a comment.
+SELECT
+  *
+FROM
+  the_schema.the_table
+WHERE
+  everything = 'is_good'
+";
+    const SQL_OUT1: &str = "SELECT
+  *
+FROM
+  the_schema.the_table
+WHERE
+  everything = 'is_good';
+";
+    const SQL_IN2: &str = "
+-- tern:noTransaction
+SELECT count(e.*),
+  e.x,
+  e.y -- This is the column called `y`
+FROM /* A comment block can even be like this */ the_table
+  as e
+JOIN another USING (id)
+/*
+This is a multi
+line
+comment
+*/
+WHERE false;
+
+SELECT a
+from x
+-- Asdfsdfsdfsdfsdsdf /* Unnecessary comment */
+where false
+
+;
+";
+    const SQL_OUT21: &str = "SELECT count(e.*),
+  e.x,
+  e.y
+FROM  the_table
+  as e
+JOIN another USING (id)
+WHERE false;
+";
+
+    const SQL_OUT22: &str = "SELECT a
+from x
+where false
+;
+";
+
+    #[test]
+    fn split_one() {
+        let q1 = Query::new(SQL_IN1.to_string());
+        let res1 = q1.split_statements();
+        assert!(res1.is_ok());
+        let split1 = res1.unwrap();
+        assert_eq!(split1, vec![SQL_OUT1.to_string()]);
+    }
+
+    #[test]
+    fn split_two() {
+        let q2 = Query::new(SQL_IN2.to_string());
+        let res2 = q2.split_statements();
+        assert!(res2.is_ok());
+        let split2 = res2.unwrap();
+        assert_eq!(split2, vec![SQL_OUT21.to_string(), SQL_OUT22.to_string()]);
     }
 }

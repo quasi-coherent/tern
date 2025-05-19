@@ -3,7 +3,14 @@
 pub mod mysql;
 
 #[cfg(feature = "sqlx")]
-#[cfg_attr(docsrs, doc(cfg(feature = "sqlx")))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(
+        feature = "sqlx_mysql",
+        feature = "sqlx_postgres",
+        feature = "sqlx_sqlite"
+    )))
+)]
 pub mod pool;
 
 #[cfg(feature = "sqlx_postgres")]

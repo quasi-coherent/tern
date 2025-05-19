@@ -1,21 +1,22 @@
+use super::{Partition, PgMigrationContext};
+
 use std::fmt::Write;
+use tern::Migration;
 use tern::error::TernResult;
 use tern::migration::{Query, QueryBuilder};
-use tern::Migration;
-
-use super::{Partition, PgMigrationContext};
 
 const PARENT_IDX_NAME: &str = "example_partitioned_name_email_dx";
 
 /// This migration can't run in a transaction because that would defeat the
-/// purpose of creating an index concurrently, thus the `no_transaction`.
+/// purpose of creating an index concurrently if it was even allowed, thus
+/// the `no_transaction`.
 #[derive(Migration)]
 #[tern(no_transaction)]
 pub struct TernMigration;
 
 impl TernMigration {
-    /// This is a "metadata-only" operation but we have to do it first in order
-    /// to "attach" the child partition indices along the way.
+    /// This is a "metadata-only" operation.  We have to do it first in order to
+    /// attach the child partition indices along the way.
     fn create_on_only_parent(&self) -> String {
         format!(
             "

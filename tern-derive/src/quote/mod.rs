@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
 use syn::Result;
+use syn::spanned::Spanned;
 
 use crate::internal::ast::ParseAttr;
 
@@ -51,11 +52,11 @@ impl ParseAttr<syn::DeriveInput> for TernDeriveAttr {
                 if meta.path.is_ident("table") {
                     let parsed_table: syn::LitStr = meta.value()?.parse()?;
                     self.table = Some(parsed_table);
-                }
-
-                if meta.path.is_ident("source") {
+                } else if meta.path.is_ident("source") {
                     let parsed_source: syn::LitStr = meta.value()?.parse()?;
                     self.source = Some(parsed_source);
+                } else {
+                    Err(syn::Error::new(attr.span(), "unknown `tern` attribute"))?;
                 }
 
                 Ok(())

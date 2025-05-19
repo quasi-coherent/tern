@@ -12,6 +12,7 @@ pub mod executor;
 pub mod migration;
 pub mod runner;
 
+#[doc(hidden)]
 pub mod future {
     pub use futures_core::future::{BoxFuture, Future};
 }

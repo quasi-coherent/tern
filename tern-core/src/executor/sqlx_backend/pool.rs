@@ -110,9 +110,10 @@ where
 
     /// This expects [`insert_into_history_query`] to have placeholders for
     /// `bind`ing the fields of the `AppliedMigration`, and that they appear in
-    /// the same order as they do in the `AppliedMigration` struct.
+    /// the same order as they do in the [`AppliedMigration`] struct.
     ///
     /// [`insert_into_history_query`]: crate::migration::QueryRepository::insert_into_history_query
+    /// [`AppliedMigration`]: crate::migration::AppliedMigration
     async fn insert_applied_migration(
         &mut self,
         history_table: &str,
@@ -133,9 +134,10 @@ where
     }
 
     /// Like [`insert_applied_migration`] this expects a query with placeholders
-    /// lining up with the order of `AppliedMigration` fields.
+    /// lining up with the order of [`AppliedMigration`] fields.
     ///
     /// [`insert_applied_migration`]: Self::insert_applied_migration
+    /// [`AppliedMigration`]: crate::migration::AppliedMigration
     async fn upsert_applied_migration(
         &mut self,
         history_table: &str,

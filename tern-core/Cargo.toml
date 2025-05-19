@@ -19,8 +19,12 @@ sqlx_mysql = ["sqlx", "sqlx/mysql"]
 sqlx_sqlite = ["sqlx", "sqlx/sqlite"]
 
 [dependencies]
-chrono = "0.4"
-futures-core = "0.3"
-log = "0.4"
-sqlx = {version = "0.8", features = ["chrono"], optional = true }
-thiserror = "1.0"
+chrono = { version = "0.4.41", features = ["serde"] }
+display_json = "0.2.1"
+futures-core = "0.3.31"
+log = "0.4.27"
+regex = "1.11.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = {version = "0.8.5", features = ["chrono"], optional = true }
+thiserror = "2.0.12"
