@@ -49,3 +49,12 @@ tern-derive = { version = "=3.0.0", path = "tern-derive" }
 tern-core.workspace = true
 tern-cli = { workspace = true, optional = true }
 tern-derive.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1.45", default-features = false, features = ["rt", "macros"] }
+sqlx = { version = "0.8.5", features = ["postgres", "runtime-tokio"] }
+
+[[test]]
+name = "postgres"
+path = "tests/postgres/postgres.rs"
+required-features = ["sqlx_postgres"]
