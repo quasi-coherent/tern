@@ -1,4 +1,4 @@
-use syn::{parse_macro_input, DeriveInput};
+use syn::{DeriveInput, parse_macro_input};
 
 mod internal;
 mod quote;
@@ -12,7 +12,7 @@ mod quote;
 ///
 /// ## Usage
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use tern::Migration;
 ///
 /// /// Then implement `tern::QueryBuilder` for this type.
@@ -38,18 +38,23 @@ pub fn migration(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// Custom, dynamic behavior for a migration can be defined for the context,
 /// which is available to [`QueryBuilder`].
 ///
-/// The macro exposes one one optional field attribute:
+/// The macro exposes one optional macro attribute and one optional field
+/// attribute:
 ///
+/// * `table` is the optional macro attribute.  With it enabled, the migration
+///   history will be stored in this table, located in the default schema for
+///   the database driver, instead of the default table, `_tern_migrations`.
 /// * `executor_via` decorates the field holding an [`Executor`], which is
 ///   required of the type to be a context.  If not specified then it is
 ///   expected that the type itself implements `Executor`.
 ///
 /// ## Usage
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use tern::{SqlxPgExecutor, MigrationContext};
 ///
 /// #[derive(MigrationContext)]
+/// #[tern(table = "_my_migration_history")]
 /// pub struct MyContext {
 ///     #[tern(executor_via)]
 ///     executor: SqlxPgExecutor,
@@ -77,18 +82,15 @@ pub fn migration_context(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 /// attribute and one optional attribute.
 ///
 /// * `source` is a required macro attribute.  It is the location of the
-///   migration files relative to the project root.
-/// * `table` is an optional macro attribute.  With it enabled, the migration
-///   history will be stored in this table, located in the default schema for
-///   the database driver, instead of the default table, `_tern_migrations`.
+///   migration files relative to the project root (i.e., CARGO_MANIFEST_DIR).
 ///
 /// ## Usage
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use tern::{SqlxPgExecutor, MigrationSource};
 ///
 /// #[derive(MigrationSource)]
-/// #[tern(source = "src/migrations", table = "_my_migrations_history")]
+/// #[tern(source = "src/migrations")]
 /// pub struct MyContext {
 ///     #[tern(executor_via)]
 ///     executor: SqlxPgExecutor,

@@ -48,11 +48,7 @@ impl MigrationSource {
                 e.to_string(),
             )
         })?;
-        let mut sources = fs::read_dir(location)
-            .map_err(|_| SourceError::Directory("could not read migration directory".to_string()))?
-            .filter_map(|entry| entry.ok().map(|e| e.path()))
-            .map(Self::parse)
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut sources = Self::parse_sources(location)?;
 
         // order asc by version
         sources.sort_by_key(|s| match s {
@@ -60,6 +56,26 @@ impl MigrationSource {
             Self::Rs(s) => s.version,
         });
         Validator::new(sources.iter().map(|v| v.migration_id()).collect::<Vec<_>>()).validate()?;
+
+        Ok(sources)
+    }
+
+    fn parse_sources(location: PathBuf) -> Result<Vec<MigrationSource>, SourceError> {
+        let sources = fs::read_dir(location)
+            .map_err(|_| SourceError::Directory("could not read migration directory".to_string()))?
+            .filter_map(|entry| {
+                let e = entry.ok()?;
+                if e.file_name()
+                    .to_str()
+                    .is_some_and(|f| f == "mod.rs" || f.starts_with("."))
+                {
+                    None
+                } else {
+                    Some(e.path())
+                }
+            })
+            .map(Self::parse)
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(sources)
     }

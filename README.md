@@ -22,32 +22,36 @@ being agnostic to the particular choice of crate for database interaction.
 
 ## Executors
 
-The abstract `Executor` is the thing ultimately responsible for actually
-connecting to a database and issuing queries.  Right now, this project
-supports all of the [`sqlx`][sqlx-repo] pool types via the generic
-[`Pool`][sqlx-pool], which includes PostgreSQL, MySQL, and SQLite. These can
-be enabled via feature flag.
+The `Executor` trait defines methods representing the minimum required to
+connect to a database, run migration queries, and interact with the migration
+history table.  Right now, `tern` supports all of the [`sqlx`][sqlx-repo]
+pool types via [`Pool`][sqlx-pool], which includes PostgreSQL, MySQL, and SQLite.
+These can be enabled via feature flag.
 
-Supporting more third-party crates is definitely desired!  If yours is not
-available here, please feel free to contribute, either with a PR or feature
-request.  Adding a new executor seems like it should not be hard.
+### Contributing
+
+Supporting more third-party crates would definitely be nice!  If one you like
+is not available here, please feel free to contribute, either with a PR or
+feature request.  Adding a new executor seems like it should not be hard.
 
 ## Usage
 
-Embedded migrations are prepared, built, and ran off a directory living in
-a Rust project's source.  This directory can contain `.rs` and `.sql` files
-having names matching the regex `^V(\d+)__(\w+)\.(sql|rs)$`, e.g.,
-`V13__create_a_table.sql` or `V5__create_a_different_table.rs`.
+Migrations are defined in a directory within a Rust project's source.
+This directory can contain `.rs` and `.sql` files having names matching the
+regex `^V(\d+)__(\w+)\.(sql|rs)$`, e.g., `V13__create_a_table.sql` or
+`V5__create_a_different_table.rs`.
 
-The stages of a migration are handled by a few different traits, but
-implementing any of them manually is generally not necessary; `tern` exposes
-derive macros that do this.
+An operation over these migrations involves validating the entire set,
+collecting the ones that are needed, resolving queries having a runtime
+dependency on a user-defined context if necessary, and then performing the
+operation in order.  This workflow goes by appealing to the following derive
+macros:
 
-* `MigrationSource`: Prepares the migrations for use in some operation by
-  parsing the directory into a sorted, uniform collection, and exposing
-  methods to return subsets for a given operation.
-* `MigrationContext`: A type providing a context to perform the operation
-  on the migrations provided by `MigrationSource`.
+* `MigrationSource`: Collects the migrations for use in the operation by
+  parsing the directory into a validated, prepared, sorted, and uniform
+  collection, and exposing methods to return a given subset.
+* `MigrationContext`: A type providing context to perform the operation
+  on the migrations passed from `MigrationSource` given some parameters.
 
 Put together, it looks like this.
 
@@ -68,8 +72,8 @@ struct Example {
 let executor = SqlxPgExecutor::new("postgres://user@localhost").await.unwrap();
 let context = Example { executor };
 let mut runner = Runner::new(context);
-let report: tern::Report = runner.apply_all().await.unwrap();
-println!("{report:#?}");
+let report: tern::Report = runner.run_apply_all(false).await.unwrap();
+println!("migration run report: {report}");
 
 ```
 
@@ -77,45 +81,48 @@ For more in-depth examples, see the [examples][examples-repo].
 
 ## SQL migrations
 
-Since migrations are embedded in the final executable, and static SQL
+Since migrations are embedded in the final executable and static SQL
 migrations are not Rust source, any change to a SQL migration won't force
 a recompilation.  The proc macro that parses these files will then not be
 up-to-date, and this can cause confusing issues.  To remedy, a `build.rs`
-file can be put in the project directory with these contents:
+file should be put in the crate root with these contents:
 
 ```rust
-fn main() {
+fn main() -> {
     println!("cargo:rerun-if-changed=src/migrations/")
 }
 ```
 
 ## Rust migrations
 
-Migrations can be expressed in Rust, and these can take advantage of the
+Migrations can be written in Rust, and these can take advantage of the
 arbitrary migration context to flexibly build the query at runtime.  For
-this to work, the derive macros get us nearly there, but the user needs to
-follow a couple rules and write an implementation of a trait to complete the
-requirements.
+this to work, `MigrationSource` and `MigrationContext` get us nearly there,
+but the user needs to follow a couple rules and write a simple implementation
+of a trait to complete the requirements.
 
-The first rule is that the type deriving `MigrationSource` be declared in
-`super` of the migrations.  So if `source = "src/migrations"`, a perfect
-place to put a `MigrationContext`/`MigrationSource`-deriving type is in the
-module `src/migrations.rs`, which would have to exist in any case. For now
-this is required because it's the easiest way to know for sure how to
-reference the module containing the migration when expanding the syntax
-coming from macros that need it.
+The first rule is that the type deriving `MigrationSource` needs to be
+declared in the immediate parent module of the migrations.  So if
+`source = "src/migrations"`, a perfect place to put the type that derives
+`MigrationContext` and `MigrationSource` is in `src/migrations.rs`, which
+would have to exist in any case. Depending on preference, the module
+`migrations` can also be a `mod.rs` living next to the migrations. This is
+required because ultimately each migration defines a module and we need to
+reference that module and members of it when expanding syntax.  The simplest
+way is to assume this module hierarchy.
 
-The other requirement is that there be a struct called `TernMigration` in
-that migration source, and that it derives `Migration`.  This is also
-required for now by an implementation detail of the macros: we need a way
-for the `Migration` macro to share data with the `MigrationSource` macro,
-or else not use `Migration` and parse the entire Rust source file within
-`MigrationSource` instead, which is clearly the least appealing option.
+The other requirement is that there needs to be a struct that is called
+`TernMigration` in any Rust migration source file, and that it derives a
+third macro, `Migration`.  `Migration` doesn't contribute much, but the
+struct deriving it is still needed because of another implementation detail
+of the macros: we need a way for the `Migration` macro to share data with the
+other two macros, the alternative being to parse the entire token stream of a
+Rust source file in the course of `MigrationSource` performing its duties,
+clearly a less appealing option.
 
-This `TernMigration` is what is needed to apply the migration when combined
-with the last thing required from the user: the actual query that should be
-ran and how it is built in the custom context.  This is represented by the
-`QueryBuilder` trait:
+This `TernMigration` is needed because the last thing that's required is a
+user-defined method on it that provides instructions for how to build its
+query using the migration context.
 
 ```rust
 use tern::{Query, QueryBuilder, Migration};
@@ -148,16 +155,17 @@ impl QueryBuilder for TernMigration {
 
 As of now, the official stance is to not support an up-down style of
 migration set, the philosophy being that down migrations are not that useful
-in practice. The "Important Notes" section in [this][flyway-undo] flyway
-documentation summarizes our feelings well.
+in practice and introduce problems just as they solve others. The section
+"Important Notes" in [this][flyway-undo] flyway documentation summarizes our
+feelings well.
 
 ## Database transactions
 
 By default, a migration and its accompanying schema history table update are
-ran in a database transaction.  Sometimes this is not desirable and other
-times it is not allowed.  For instance, in postgres you cannot create an
-index `CONCURRENTLY` in a transaction.  To give the user the option, `tern`
-understands certain annotations and will not run that migration in a
+ran together in a database transaction.  Sometimes this is not desirable and
+other times it is not even allowed.  For instance, in postgres you cannot
+create an index `CONCURRENTLY` in a transaction.  To give the user the option,
+`tern` understands certain annotations and will not run that migration in a
 database transaction if they are present.
 
 For a SQL migration:
@@ -173,7 +181,7 @@ For a Rust migration:
 ```rust
 use tern::Migration;
 
-/// Don't run this migration in a transaction.
+/// Don't run this in a transaction.
 #[derive(Migration)]
 #[tern(no_transaction)]
 pub struct TernMigration;
@@ -183,7 +191,9 @@ pub struct TernMigration;
 
 With the feature flag "cli" enabled the type `App` is exported, which is a
 CLI wrapping `Runner` methods that can be imported into your own migration
-project to turn it into a CLI.
+project to turn it into a CLI, provided that the migration context has an
+implementation of `ContextOptions` which simply says how to create the
+context from a connection string.
 
 ```terminal
 > $ my-migration-project --help
@@ -193,6 +203,34 @@ Commands:
   migrate  Operations on the set of migration files
   history  Operations on the table storing the history of these migrations
   help     Print this message or the help of the given subcommand(s)
+
+Options:
+-h, --help  Print help
+
+> $ my-migration-project migrate --help
+Operations on the set of migration files
+Usage: my-migration-project migrate <COMMAND>
+
+Commands:
+  apply         Run the apply operation for a specific range of unapplied migrations
+  apply-all     Run any available unapplied migrations
+  soft-apply    Insert migrations into the history table without applying them
+  list-applied  List previously applied migrations
+  new           Create a migration with the description and an auto-selected version
+  help          Print this message or the help of the given subcommand(s)
+
+Options:
+-h, --help  Print help
+
+> $ my-migration-project history --help
+Operations on the table storing the history of these migrations
+
+Usage: my-migration-project history <COMMAND>
+
+Commands:
+  init        Create the schema history table
+  drop        Drop the schema history table
+  help        Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help

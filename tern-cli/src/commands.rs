@@ -104,9 +104,8 @@ fn migration_template(no_tx: bool, ty: MigrationType) -> String {
             };
             content += &format!(
                 r#"
-use tern::error::{{Error, TernResult}};
-use tern::migration::{{Query, QueryBuilder}};
-use tern::Migration;
+use tern::error::TernResult;
+use tern::migration::{{Migration, Query, QueryBuilder}};
 
 {derive}
 pub struct TernMigration;

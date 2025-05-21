@@ -15,6 +15,12 @@ impl PgMigrationContext {
         Ok(Self { executor })
     }
 
+    /// The index build migration needs the child partitions of the table.
+    /// So the context needs to be able to obtain them.
+    /// This function defines the context's ability to fetch the current list of
+    /// child partitions for the partitioned table at the time the migration
+    /// query needs to be built.  This is done by querying two system tables
+    /// storing inheritance relations between tables.
     pub async fn get_partitions(&self) -> TernResult<Vec<Partition>> {
         let partitions: Vec<Partition> = sqlx::query_as(
             "
@@ -50,7 +56,7 @@ impl ContextOptions for PgContextOptions {
     }
 }
 
-/// A record from the result of the query above.
+/// A record from the result of the query `get_partitions`.
 #[derive(sqlx::FromRow)]
 pub struct Partition {
     relnamespace: String,

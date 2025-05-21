@@ -29,11 +29,33 @@ pub struct History {
 
 #[derive(Debug, Parser)]
 pub enum MigrateCommands {
-    /// Run any available unapplied migrations
-    ApplyAll {
-        /// List the migrations to be applied without applying them
+    /// Run the apply operation for a specific range of unapplied migrations
+    Apply {
+        /// Render the migration report without applying any migrations
         #[arg(short, long)]
         dryrun: bool,
+        /// Apply unapplied migrations up through this version
+        #[arg(long)]
+        target_version: Option<i64>,
+        #[clap(flatten)]
+        connect_opts: ConnectOpts,
+    },
+    /// Run any available unapplied migrations
+    ApplyAll {
+        /// Render the migration report without applying any migrations
+        #[arg(short, long)]
+        dryrun: bool,
+        #[clap(flatten)]
+        connect_opts: ConnectOpts,
+    },
+    /// Insert migrations into the history table without applying them
+    SoftApply {
+        /// Render the migration report without soft applying any migrations
+        #[arg(short, long)]
+        dryrun: bool,
+        /// Soft apply unapplied migrations up through this version
+        #[arg(long)]
+        target_version: Option<i64>,
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
@@ -44,6 +66,7 @@ pub enum MigrateCommands {
     },
     /// Create a migration with the description and an auto-selected version
     New {
+        /// Name of the migratoin
         description: String,
         /// If `true`, annotate the migration to not run in a transaction
         no_tx: bool,
@@ -67,9 +90,9 @@ pub enum HistoryCommands {
         #[clap(flatten)]
         connect_opts: ConnectOpts,
     },
-    /// Update/insert the migration into history without applying
+    /// Deprecated: use `migrate soft-apply` instead
     SoftApply {
-        /// The version to start the soft apply with (defaults to the first)
+        /// `--from-version` is not a valid option
         #[arg(long)]
         from_version: Option<i64>,
         /// The version to end the soft apply with (defaults to the last)
@@ -105,7 +128,7 @@ impl ConnectOpts {
     pub fn required_db_url(&self) -> anyhow::Result<&str> {
         self.database_url.as_deref().ok_or_else(
             || anyhow::anyhow!(
-                "the `--database-url` option or the `DATABASE_URL` environment variable must be provided"
+                "the `--database-url/-D` option or the `DATABASE_URL` environment variable must be provided"
             )
         )
     }
