@@ -1,4 +1,4 @@
-use syn::{DeriveInput, parse_macro_input};
+use syn::{parse_macro_input, DeriveInput};
 
 mod internal;
 mod quote;

@@ -66,7 +66,7 @@ pub enum MigrateCommands {
     },
     /// Create a migration with the description and an auto-selected version
     New {
-        /// Name of the migratoin
+        /// Name of the migration
         description: String,
         /// If `true`, annotate the migration to not run in a transaction
         no_tx: bool,

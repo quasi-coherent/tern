@@ -23,6 +23,7 @@ impl<C> Runner<C>
 where
     C: MigrationContext,
 {
+    /// Create a new `Runner` with default arguments from a context.
     pub fn new(context: C) -> Self {
         Self { context }
     }
@@ -37,16 +38,9 @@ where
         self.context.drop_history_table().await
     }
 
-    // Validate the migration source against the history table.
-    //
-    // This checks that there are not fewer migrations in the source than the
-    // the history table and that the IDs (name and version) match.
-    // The derive macro `MigrationSource` will not compile a migration set that
-    // has duplicates or missing migrations, so that and this are fairly complete
-    // validation together.
+    // Find applied migrations that are not in the source directory.
     async fn validate_source(&mut self) -> TernResult<()> {
         self.context.check_history_table().await?;
-
         let applied: HashSet<MigrationId> = self
             .context
             .previously_applied()
@@ -61,25 +55,7 @@ where
             .into_iter()
             .collect();
 
-        if !source.is_superset(&applied) {
-            let sym_diff: HashSet<_> = applied.symmetric_difference(&source).collect();
-            // Concatenate back into the filename the migrations not in both the
-            // local set and history table.  Since `source` is not a superset of
-            // `applied`, these are the missing local migrations.
-            let msg = sym_diff
-                .into_iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-
-            return Err(Error::MissingSource {
-                local: source.len() as i64,
-                history: applied.len() as i64,
-                msg,
-            });
-        }
-
-        Ok(())
+        check_migrations_in_sync(applied, source)
     }
 
     // Check that the target migration version (for some operation) is valid.
@@ -107,11 +83,6 @@ where
     }
 
     /// Apply unapplied migrations up to and including the specified version.
-    ///
-    /// If `dryrun` is `true`, the report that is returned will show the
-    /// unapplied version of each migration, including the query that was built,
-    /// from the first unapplied up through `target_version`. Applying all
-    /// unapplied is equivalent to passing `None` for `target_version`.
     pub async fn run_apply(
         &mut self,
         target_version: Option<i64>,
@@ -159,17 +130,12 @@ where
     }
 
     /// Apply all unapplied migrations.
-    #[deprecated(since = "3.1.0", note = "use `run_apply_all` with `dryrun = false`")]
+    #[deprecated(since = "3.1.0", note = "use `run_apply_all`")]
     pub async fn apply_all(&mut self) -> TernResult<Report> {
         self.run_apply(None, false).await
     }
 
     /// Apply all unapplied migrations.
-    ///
-    /// If `dryrun` is `true`, the report that is returned will show the
-    /// unapplied version of each migration, including the query that was built,
-    /// from the first unapplied up through the latest version in the migration
-    /// source directory.
     pub async fn run_apply_all(&mut self, dryrun: bool) -> TernResult<Report> {
         self.run_apply(None, dryrun).await
     }
@@ -212,11 +178,6 @@ where
     /// will not have its query applied.  This is useful in the case where you
     /// want to change migration tables, apply a patch to the current one,
     /// migrate from a different migration tool, etc.
-    ///
-    /// If `dryrun` is true, the report that is returned will show the unapplied
-    /// migrations that would be written to the history table as if they had been
-    /// applied, including the query that was built but not ran, from the first
-    /// unapplied up through `target_version`.
     pub async fn run_soft_apply(
         &mut self,
         target_version: Option<i64>,
@@ -266,7 +227,7 @@ where
 }
 
 /// A formatted version of a collection of migrations.
-#[derive(Clone, Serialize, DebugAsJson, DisplayAsJsonPretty)]
+#[derive(Clone, Serialize, DebugAsJson, DisplayAsJsonPretty, Default)]
 pub struct Report {
     migrations: Vec<MigrationResult>,
 }
@@ -407,5 +368,109 @@ impl std::fmt::Display for RunDuration {
             Self::Duration(ms) => write!(f, "{}ms", ms),
             Self::Unapplied => write!(f, "Not Applied"),
         }
+    }
+}
+
+// Migrations that have been applied already but do not exist locally.
+fn check_migrations_in_sync(
+    applied: HashSet<MigrationId>,
+    source: HashSet<MigrationId>,
+) -> TernResult<()> {
+    let source_not_found: Vec<&MigrationId> = applied.difference(&source).collect();
+
+    if !source_not_found.is_empty() {
+        return Err(Error::OutOfSync {
+            at_issue: source_not_found.into_iter().cloned().collect(),
+            msg: "version/name applied but missing in source".into(),
+        });
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+    use super::MigrationId;
+
+    use std::collections::HashSet;
+
+    #[test]
+    fn missing_source() {
+        let source: HashSet<MigrationId> = vec![
+            MigrationId::new(1, "first".into()),
+            MigrationId::new(2, "second".into()),
+            MigrationId::new(3, "fourth".into()),
+        ]
+        .into_iter()
+        .collect();
+        let applied: HashSet<MigrationId> = vec![
+            MigrationId::new(1, "first".into()),
+            MigrationId::new(2, "second".into()),
+            MigrationId::new(3, "third".into()),
+        ]
+        .into_iter()
+        .collect();
+        let missing = vec![MigrationId::new(3, "third".into())];
+        let result = super::check_migrations_in_sync(applied, source);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == missing));
+    }
+
+    #[test]
+    fn fewer_in_source() {
+        let source: HashSet<MigrationId> = vec![
+            MigrationId::new(1, "first".into()),
+            MigrationId::new(2, "second".into()),
+            MigrationId::new(3, "third".into()),
+        ]
+        .into_iter()
+        .collect();
+        let applied: HashSet<MigrationId> = vec![
+            MigrationId::new(1, "first".into()),
+            MigrationId::new(2, "second".into()),
+            MigrationId::new(3, "third".into()),
+            MigrationId::new(4, "fourth".into()),
+        ]
+        .into_iter()
+        .collect();
+        let missing = vec![MigrationId::new(4, "fourth".into())];
+        let result = super::check_migrations_in_sync(applied, source);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == missing));
+    }
+
+    #[test]
+    fn mismatched_source() {
+        let source: HashSet<MigrationId> = vec![
+            MigrationId::new(1, "first".into()),
+            MigrationId::new(2, "second".into()),
+            MigrationId::new(3, "third".into()),
+            MigrationId::new(4, "fifth".into()),
+            MigrationId::new(5, "sixth".into()),
+            MigrationId::new(6, "seventh".into()),
+            MigrationId::new(7, "eighth".into()),
+        ]
+        .into_iter()
+        .collect();
+        let applied: HashSet<MigrationId> = vec![
+            MigrationId::new(1, "first".into()),
+            MigrationId::new(2, "second".into()),
+            MigrationId::new(3, "third".into()),
+            MigrationId::new(4, "fourth".into()),
+            MigrationId::new(5, "fifth".into()),
+        ]
+        .into_iter()
+        .collect();
+        let divergence = vec![
+            MigrationId::new(4, "fourth".into()),
+            MigrationId::new(5, "fifth".into()),
+        ];
+        let result = super::check_migrations_in_sync(applied, source);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == divergence));
     }
 }
