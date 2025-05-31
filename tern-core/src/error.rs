@@ -34,6 +34,13 @@ pub enum Error {
         history: i64,
         msg: String,
     },
+    /// The source migrations and the history are not synchronized in a way that
+    /// is expected.
+    #[error("inconsistent source: {msg}: {at_issue:?}")]
+    OutOfSync {
+        at_issue: Vec<MigrationId>,
+        msg: String,
+    },
     /// The options passed are not valid.
     #[error("invalid parameter for the operation requested: {0}")]
     Invalid(String),
