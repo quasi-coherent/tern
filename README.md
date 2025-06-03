@@ -88,7 +88,7 @@ up-to-date, and this can cause confusing issues.  To remedy, a `build.rs`
 file should be put in the crate root with these contents:
 
 ```rust
-fn main() -> {
+fn main() {
     println!("cargo:rerun-if-changed=src/migrations/")
 }
 ```
