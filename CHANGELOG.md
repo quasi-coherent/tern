@@ -16,8 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * [[#26]]: Deprecated `Runner::apply_all` in favor of `run_apply_all` to accept `dryrun` argument.  Deprecated
           `Runner::soft_apply` and CLI subcommand in favor of `run_soft_apply` to not accept a `start_version` input.
-  * Validation rule that local migrations be a superset of remote history with respect to version and name.
-  * Ability of the migration parent module to be of the `mod.rs` form.
   * Logging: All usage of `log::info!` changed to `log::trace!`. CLI returns the report for the user to render
     if they want.
 
