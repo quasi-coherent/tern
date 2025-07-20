@@ -3,12 +3,13 @@
 //!
 //! [`Executor`]: crate::migration::Executor
 //! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
-use chrono::{DateTime, Utc};
-use sqlx::{Acquire, Database, Encode, Executor, FromRow, IntoArguments, Pool, Type};
-use std::marker::PhantomData;
-
 use crate::error::{DatabaseError as _, TernResult};
 use crate::migration::{AppliedMigration, Executor as MigrationExecutor, Query, QueryRepository};
+
+use chrono::{DateTime, Utc};
+use sqlx::pool::PoolOptions;
+use sqlx::{Acquire, Connection, Database, Encode, Executor, FromRow, IntoArguments, Pool, Type};
+use std::marker::PhantomData;
 
 /// The generic `sqlx::Pool` as a migration executor backend.
 pub struct SqlxExecutor<Db, Q>
@@ -25,8 +26,22 @@ where
     Db: Database,
     Q: QueryRepository,
 {
+    /// Create the pool from a connection string.
     pub async fn new(db_url: &str) -> TernResult<Self> {
         let pool = Pool::connect(db_url).await.tern_result()?;
+
+        Ok(Self {
+            pool,
+            _q: PhantomData,
+        })
+    }
+
+    /// Create the pool from the options associated to `Db::Connection`.
+    pub async fn new_with(options: <Db::Connection as Connection>::Options) -> TernResult<Self> {
+        let pool = PoolOptions::<Db>::new()
+            .connect_with(options)
+            .await
+            .tern_result()?;
 
         Ok(Self {
             pool,
