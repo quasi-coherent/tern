@@ -1828,7 +1828,7 @@ dependencies = [
 
 [[package]]
 name = "tern"
-version = "3.1.1"
+version = "3.1.2"
 dependencies = [
  "tern-cli",
  "tern-core",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "tern-cli"
-version = "3.1.1"
+version = "3.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1849,7 +1849,7 @@ dependencies = [
 
 [[package]]
 name = "tern-core"
-version = "3.1.1"
+version = "3.1.2"
 dependencies = [
  "chrono",
  "display_json",
@@ -1864,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "tern-derive"
-version = "3.1.1"
+version = "3.1.2"
 dependencies = [
  "proc-macro2",
  "quote",

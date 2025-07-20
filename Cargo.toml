@@ -10,7 +10,7 @@ default-members = ["tern-core", "tern-cli", "tern-derive"]
 exclude = []
 
 [workspace.package]
-version = "3.1.1"
+version = "3.1.2"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 repository = "https://github.com/quasi-coherent/tern"
@@ -41,9 +41,9 @@ sqlx_mysql = ["tern-core/sqlx_mysql"]
 sqlx_sqlite = ["tern-core/sqlx_sqlite"]
 
 [workspace.dependencies]
-tern-core = { version = "=3.1.1", path = "tern-core" }
-tern-cli = { version = "=3.1.1", path = "tern-cli" }
-tern-derive = { version = "=3.1.1", path = "tern-derive" }
+tern-core = { version = "=3.1.2", path = "tern-core" }
+tern-cli = { version = "=3.1.2", path = "tern-cli" }
+tern-derive = { version = "=3.1.2", path = "tern-derive" }
 
 [dependencies]
 tern-core.workspace = true
