@@ -26,7 +26,7 @@ where
     Db: Database,
     Q: QueryRepository,
 {
-    /// Create the pool from a connection string.
+    /// Create a pool with default options from a connection string.
     pub async fn new(db_url: &str) -> TernResult<Self> {
         let pool = Pool::connect(db_url).await.tern_result()?;
 
@@ -36,12 +36,12 @@ where
         })
     }
 
-    /// Create the pool from the options associated to `Db::Connection`.
-    pub async fn new_with(options: <Db::Connection as Connection>::Options) -> TernResult<Self> {
-        let pool = PoolOptions::<Db>::new()
-            .connect_with(options)
-            .await
-            .tern_result()?;
+    /// Create the pool from the given options.
+    pub async fn new_with(
+        pool_opts: PoolOptions<Db>,
+        conn_opts: <Db::Connection as Connection>::Options,
+    ) -> TernResult<Self> {
+        let pool = pool_opts.connect_with(conn_opts).await.tern_result()?;
 
         Ok(Self {
             pool,
