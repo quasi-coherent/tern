@@ -1,24 +1,28 @@
 //! A database migration library and CLI supporting embedded migrations written
 //! in SQL or Rust.
 //!
-//! It aims to support static SQL migration sets, but expands to work with
-//! migration queries written in Rust that are either statically determined or
-//! that need to be dynamically built at the time of being applied, while
-//! being agnostic to the particular choice of crate for database interaction.
+//! It obviously aims to support plain SQL migrations, but expands to work with
+//! migration queries written in Rust that possibly need to be built at the time
+//! of being applied, while being agnostic to the particular choice of crate for
+//! database interaction.
 //!
 //! ## Executors
 //!
 //! The [`Executor`] trait defines methods representing the minimum required to
 //! connect to a database, run migration queries, and interact with the migration
 //! history table.  Right now, `tern` supports all of the [`sqlx`][sqlx-repo]
-//! pool types via [`Pool`][sqlx-pool], which includes PostgreSQL, MySQL, and SQLite.
-//! These can be enabled via feature flag.
+//! pool types via [`Pool`][sqlx-pool], which includes PostgreSQL, MySQL, and
+//! SQLite. These can be enabled via feature flag.
 //!
 //! ### Contributing
 //!
 //! Supporting more third-party crates would definitely be nice!  If one you like
 //! is not available here, please feel free to contribute, either with a PR or
 //! feature request.  Adding a new executor seems like it should not be hard.
+//! Outside of additional backend types, we are very open and happy to hear
+//! suggestions for how the project could be improved; simply open an issue with
+//! the label "enhancement".  Defects or general issues detracting from usage
+//! should also be reported in an issue, and it will be addressed immediately.
 //!
 //! ## Usage
 //!
@@ -42,7 +46,6 @@
 //! Put together, it looks like this.
 //!
 //! ```rust,no_run
-//! # async fn asdf() -> String {
 //! use tern::{MigrationSource, MigrationContext, Runner, SqlxPgExecutor};
 //!
 //! /// `$CARGO_MANIFEST_DIR/src/migrations` is a collection of migration files.
@@ -61,9 +64,6 @@
 //! let mut runner = Runner::new(context);
 //! let report: tern::Report = runner.run_apply_all(false).await.unwrap();
 //! println!("migration run report: {report}");
-//!
-//! # String::from("asdf")
-//! # }
 //! ```
 //!
 //! For more in-depth examples, see the [examples][examples-repo].
@@ -77,7 +77,7 @@
 //! file should be put in the crate root with these contents:
 //!
 //! ```rust,no_run
-//! fn main() -> {
+//! fn main() {
 //!     println!("cargo:rerun-if-changed=src/migrations/")
 //! }
 //! ```
