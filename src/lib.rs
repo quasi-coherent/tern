@@ -76,7 +76,7 @@
 //! up-to-date, and this can cause confusing issues.  To remedy, a `build.rs`
 //! file should be put in the crate root with these contents:
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! fn main() {
 //!     println!("cargo:rerun-if-changed=src/migrations/")
 //! }
