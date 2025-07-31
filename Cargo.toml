@@ -10,11 +10,11 @@ default-members = ["tern-core", "tern-cli", "tern-derive"]
 exclude = []
 
 [workspace.package]
-version = "3.1.3"
+version = "3.1.4"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 repository = "https://github.com/quasi-coherent/tern"
-keywords = ["embedded", "database", "migrations", "postgres", "mysql"]
+keywords = ["embedded", "database", "migrations", "postgres", "mysql", "sqlite"]
 categories = ["database"]
 authors = ["Daniel Donohue <d.michael.donohue@gmail.com>"]
 rust-version = "1.81.0"
@@ -41,9 +41,9 @@ sqlx_mysql = ["tern-core/sqlx_mysql"]
 sqlx_sqlite = ["tern-core/sqlx_sqlite"]
 
 [workspace.dependencies]
-tern-core = { version = "=3.1.3", path = "tern-core" }
-tern-cli = { version = "=3.1.3", path = "tern-cli" }
-tern-derive = { version = "=3.1.3", path = "tern-derive" }
+tern-core = { version = "=3.1.4", path = "tern-core" }
+tern-cli = { version = "=3.1.4", path = "tern-cli" }
+tern-derive = { version = "=3.1.4", path = "tern-derive" }
 
 [dependencies]
 tern-core.workspace = true
