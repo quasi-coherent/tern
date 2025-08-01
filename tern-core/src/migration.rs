@@ -15,13 +15,13 @@
 use crate::error::{DatabaseError as _, TernResult};
 
 use chrono::{DateTime, Utc};
-use futures_core::{future::BoxFuture, Future};
+use futures_core::{Future, future::BoxFuture};
 use std::{fmt::Write, time::Instant};
 
 /// The context in which a migration run occurs.
 pub trait MigrationContext
 where
-    Self: MigrationSource<Ctx = Self> + Send + Sync + 'static,
+    Self: Send + Sync + 'static,
 {
     /// The name of the table in the database that tracks the history of this
     /// migration set.
@@ -35,6 +35,9 @@ where
 
     /// A reference to the underlying `Executor`.
     fn executor(&mut self) -> &mut Self::Exec;
+
+    ///
+    fn migration_set(&self, last_applied: Option<i64>) -> MigrationSet<Self>;
 
     /// For a migration that is capable of building its query in this migration
     /// context, this builds the query, applies the migration, then updates the
@@ -237,16 +240,16 @@ where
     }
 }
 
-/// A type that is used to collect a [`MigrationSet`] -- migrations that are not
-/// applied yet -- which is used as the input to runner commands.
-pub trait MigrationSource {
-    /// A context that the set of migrations returned by `migration_set` would
-    /// need in order to be applied.
-    type Ctx: MigrationContext;
+// /// A type that is used to collect a [`MigrationSet`] -- migrations that are not
+// /// applied yet -- which is used as the input to runner commands.
+// pub trait MigrationSource {
+//     /// A context that the set of migrations returned by `migration_set` would
+//     /// need in order to be applied.
+//     type Ctx: MigrationContext;
 
-    /// The set of migrations since `last_applied`.
-    fn migration_set(&self, last_applied: Option<i64>) -> MigrationSet<Self::Ctx>;
-}
+//     /// The set of migrations since `last_applied`.
+//     fn migration_set(&self, last_applied: Option<i64>) -> MigrationSet<Self::Ctx>;
+// }
 
 /// The `Migration`s derived from the files in the source directory that need to
 /// be applied.

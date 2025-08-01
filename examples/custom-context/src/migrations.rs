@@ -10,14 +10,14 @@
 //! location.  The field attribute `executor_via` points out the field that
 //! should be used to implement the required functionality a database connection
 //! would have.
-use tern::{error::TernResult, ContextOptions, SqlxPgExecutor};
-use tern::{MigrationContext, MigrationSource};
+use tern::MigrationContext;
+use tern::{ContextOptions, SqlxPgExecutor, error::TernResult};
 
 /// `SqlxPgExecutor` is a supported connection type and it already implements
 /// `Executor`, so that's the field we decorate with the hint to use it for
 /// the migration runner to run queries.  We're also going to use a custom
 /// schema migration history table.
-#[derive(MigrationContext, MigrationSource)]
+#[derive(MigrationContext)]
 #[tern(source = "src/migrations", table = "example_schema_history")]
 pub struct ExampleContext {
     #[tern(executor_via)]

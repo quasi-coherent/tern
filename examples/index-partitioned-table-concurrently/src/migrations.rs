@@ -1,8 +1,8 @@
 use tern::error::{DatabaseError as _, TernResult};
-use tern::{ContextOptions, SqlxPgExecutor};
-use tern::{MigrationContext, MigrationSource};
+use tern::executor::SqlxPgExecutor;
+use tern::{ContextOptions, MigrationContext};
 
-#[derive(MigrationContext, MigrationSource)]
+#[derive(MigrationContext)]
 #[tern(source = "src/migrations")]
 pub struct PgMigrationContext {
     #[tern(executor_via)]
