@@ -225,7 +225,6 @@
 //!   -h, --help  Print help
 //! ```
 //!
-//! [`MigrationSource`]: crate::tern_derive::MigrationSource
 //! [`MigrationContext`]: crate::tern_derive::MigrationContext
 //! [`Migration`]: crate::tern_derive::Migration
 //! [`Executor`]: crate::Executor
@@ -244,7 +243,7 @@ pub use tern_core::error::{self, DatabaseError, Error, TernResult};
 
 #[doc(inline)]
 pub use tern_core::migration::{
-    self, Executor, Migration, MigrationContext, MigrationSet, MigrationSource, Query, QueryBuilder,
+    self, Executor, Migration, MigrationContext, MigrationSet, Query, QueryBuilder,
 };
 
 #[doc(inline)]
@@ -287,4 +286,4 @@ pub use tern_cli::{App, ContextOptions};
 #[doc(hidden)]
 extern crate tern_derive;
 
-pub use tern_derive::{Migration, MigrationContext, MigrationSource};
+pub use tern_derive::{Migration, MigrationContext};
