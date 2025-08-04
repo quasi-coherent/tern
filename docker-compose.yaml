@@ -16,6 +16,7 @@ services:
       mysql:8.0-bookworm
     environment:
       MYSQL_ROOT_HOST: "%"
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
       MYSQL_USER: "tern"
       MYSQL_PASSWORD: "password"
       MYSQL_DATABASE: "tern"

@@ -14,13 +14,13 @@
 //! user according to the needs of the migration.  For this example, `GetEnvVar`
 //! is just a type that can get an environment variable.
 //!
-//! The query for this migration depends on the current time and place; it needs
-//! whatever the $USER is and the maximum value of the `z` column in `dmd_test`.
-//! So the query has to be built dynamically at the time when the migration is
-//! applied, which is what `QueryBuilder` exists for.
-use tern::error::{TernResult, Error};
-use tern::migration::{Query, QueryBuilder};
+//! The query for this contrived migration depends on the current time and place;
+//! it needs whatever the $USER is and the maximum of `z` in `dmd_test`.  So it
+//! needs to be built at the time migrations are applied, which `QueryBuilder`
+//! enables.
 use tern::Migration;
+use tern::error::{Error, TernResult};
+use tern::source::{Query, QueryBuilder};
 
 use super::ExampleContext;
 

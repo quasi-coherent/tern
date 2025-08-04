@@ -1,14 +1,11 @@
 use custom_context::ExampleOptions;
-use tern::App;
+use tern::Tern;
 
 #[tokio::main]
 async fn main() {
-    let mut env = env_logger::Builder::from_default_env();
-    env.filter(None, log::LevelFilter::Info).init();
+    env_logger::init();
 
-    let app = App::new(ExampleOptions);
-
-    if let Err(e) = app.run().await {
+    if let Err(e) = Tern::run_cli(ExampleOptions).await {
         log::error!("{e}");
         std::process::exit(1);
     }

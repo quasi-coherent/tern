@@ -3,7 +3,7 @@ use super::{Partition, PgMigrationContext};
 use std::fmt::Write;
 use tern::Migration;
 use tern::error::TernResult;
-use tern::migration::{Query, QueryBuilder};
+use tern::source::{Query, QueryBuilder};
 
 const PARENT_IDX_NAME: &str = "example_partitioned_name_email_dx";
 
@@ -13,7 +13,6 @@ const PARENT_IDX_NAME: &str = "example_partitioned_name_email_dx";
 #[derive(Migration)]
 #[tern(no_transaction)]
 pub struct TernMigration;
-
 impl TernMigration {
     /// This is a "metadata-only" operation.  We have to do it first in order to
     /// attach the child partition indices along the way.
