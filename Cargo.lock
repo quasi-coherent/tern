@@ -1838,6 +1838,12 @@ dependencies = [
 name = "tern"
 version = "4.0.0"
 dependencies = [
+ "chrono",
+ "display_json",
+ "futures-core",
+ "log",
+ "serde",
+ "serde_json",
  "tern-cli",
  "tern-core",
  "tern-derive",
@@ -1860,12 +1866,8 @@ name = "tern-core"
 version = "4.0.0"
 dependencies = [
  "chrono",
- "display_json",
  "futures-core",
- "log",
  "regex",
- "serde",
- "serde_json",
  "sqlx",
  "thiserror",
 ]

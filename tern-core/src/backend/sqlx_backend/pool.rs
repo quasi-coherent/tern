@@ -1,10 +1,11 @@
 //! [`Executor`] for the generic [`sqlx::Pool`][sqlx-pool], a pool of `sqlx`
 //! database connections.
 //!
-//! [`Executor`]: crate::migration::Executor
+//! [`Executor`]: crate::context::Executor
 //! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
+use crate::context::Executor as MigrationExecutor;
 use crate::error::{DatabaseError as _, TernResult};
-use crate::migration::{AppliedMigration, Executor as MigrationExecutor, Query, QueryRepository};
+use crate::source::{AppliedMigration, Query, QueryRepository};
 
 use chrono::{DateTime, Utc};
 use sqlx::pool::PoolOptions;
@@ -49,10 +50,14 @@ where
         })
     }
 
-    /// Exposing the underlying connection object for usage involving queries
-    /// beyond what `Executor` details.
-    pub fn pool(&self) -> Pool<Db> {
-        self.pool.clone()
+    /// Obtain a reference to the underlying `Pool`.
+    pub fn pool(&self) -> &Pool<Db> {
+        &self.pool
+    }
+
+    /// Obtain a mutable reference to the underlying `Pool`.
+    pub fn pool_mut(&mut self) -> &mut Pool<Db> {
+        &mut self.pool
     }
 }
 

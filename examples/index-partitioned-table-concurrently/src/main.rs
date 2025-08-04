@@ -1,18 +1,15 @@
 use index_partitioned_table_concurrently::PgContextOptions;
-use tern::App;
+use tern::Tern;
 
 #[tokio::main]
 async fn main() {
-    let mut env = env_logger::Builder::from_default_env();
-    env.filter(None, log::LevelFilter::Info).init();
+    env_logger::init();
 
-    let app = App::new(PgContextOptions);
-
-    match app.run().await {
-        Err(e) => log::error!("{e}"),
+    match Tern::run_cli(PgContextOptions).await {
         Ok(Some(report)) => report
             .iter_results()
             .for_each(|result| log::info!("{result}")),
         Ok(_) => log::info!("OK"),
+        Err(e) => log::error!("{e}"),
     }
 }

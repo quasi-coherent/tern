@@ -1,17 +1,7 @@
-//! The main part to play in the way this migration tool works is given to the
-//! traits `MigrationContext` and `MigrationSource`.  Derive macros exist for
-//! both, provided that the type deriving `MigrationSource` is `super` to the
-//! migration source directory if there are Rust migrations, since it has to
-//! reference the module containing a Rust migration.
-//!
-//! For `MigrationSource`, the attribute `source` is the path to migrations
-//! relative to the project root and it is required.  For `MigrationContext` the
-//! attribute `table` allows you to create the schema history in a custom
-//! location.  The field attribute `executor_via` points out the field that
-//! should be used to implement the required functionality a database connection
-//! would have.
+use tern::cli::ConnectContext;
+use tern::error::TernResult;
+use tern::executor::SqlxPgExecutor;
 use tern::MigrationContext;
-use tern::{ContextOptions, SqlxPgExecutor, error::TernResult};
 
 /// `SqlxPgExecutor` is a supported connection type and it already implements
 /// `Executor`, so that's the field we decorate with the hint to use it for
@@ -39,7 +29,7 @@ impl ExampleContext {
     /// column, but that will be used to build the example dynamic migration.
     pub async fn max_value(&self) -> anyhow::Result<i64> {
         let max_val: i64 = sqlx::query_scalar("SELECT max(x) FROM dmd_test;")
-            .fetch_optional(&self.executor.pool())
+            .fetch_optional(self.executor.pool())
             .await?
             .unwrap_or_default();
 
@@ -63,8 +53,7 @@ impl GetEnvVar {
 /// argument, so the implementation just allows the CLI to work with a generic
 /// context.
 pub struct ExampleOptions;
-
-impl ContextOptions for ExampleOptions {
+impl ConnectContext for ExampleOptions {
     type Ctx = ExampleContext;
 
     async fn connect(&self, db_url: &str) -> TernResult<ExampleContext> {

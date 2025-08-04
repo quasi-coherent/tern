@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::Result;
 use syn::spanned::Spanned;
+use syn::Result;
 
 use crate::internal::ast::{Container, ParseAttr};
 use crate::internal::parse;
@@ -39,7 +39,7 @@ impl<'a> MigrationContextContainer<'a> {
         let quote_impl_migration_ctx = quote! {
             #quote_migrations
             #[automatically_derived]
-            impl ::tern::migration::MigrationContext for #ident {
+            impl ::tern::context::MigrationContext for #ident {
                 #quote_migration_ctx_body
             }
         };
@@ -237,17 +237,17 @@ impl MigrationSetContainer {
         let boxed_migrations = self.quote_boxed_qualified_migration_types();
 
         quote! {
-            fn migration_set(&self, target_version: Option<i64>) -> ::tern::migration::MigrationSet<Self> {
-                let all: Vec<Box<dyn ::tern::migration::Migration<Ctx = Self>>> = vec![#(#boxed_migrations),*];
+            fn migration_set(&self, target_version: Option<i64>) -> ::tern::source::MigrationSet<Self> {
+                let all: Vec<Box<dyn ::tern::source::Migration<Ctx = Self>>> = vec![#(#boxed_migrations),*];
                 let Some(v) = target_version else {
-                    return ::tern::migration::MigrationSet::new(all);
+                    return ::tern::source::MigrationSet::new(all);
                 };
-                let migrations: Vec<Box<dyn ::tern::migration::Migration<Ctx = Self>>> = all
+                let migrations: Vec<Box<dyn ::tern::source::Migration<Ctx = Self>>> = all
                     .into_iter()
                     .skip_while(|m| m.as_ref().version() <= v)
                     .collect::<Vec<_>>();
 
-                ::tern::migration::MigrationSet::new(migrations)
+                ::tern::source::MigrationSet::new(migrations)
             }
         }
     }
@@ -346,7 +346,7 @@ impl MigrationContainer {
         };
 
         quote! {
-            impl ::tern::migration::Migration for #module::TernMigration {
+            impl ::tern::source::Migration for #module::TernMigration {
                 type Ctx = #ctx;
 
                 #quote_common
@@ -365,9 +365,9 @@ impl MigrationContainer {
         let content = self.content();
 
         quote! {
-            fn migration_id(&self) -> ::tern::migration::MigrationId {
+            fn migration_id(&self) -> ::tern::source::MigrationId {
                 let description = #description.to_string();
-                ::tern::migration::MigrationId::new(#version, description)
+                ::tern::source::MigrationId::new(#version, description)
             }
 
             fn content(&self) -> String {
@@ -377,9 +377,9 @@ impl MigrationContainer {
             fn build<'a>(
                 &'a self,
                 ctx: &'a mut Self::Ctx,
-            ) -> ::tern::future::BoxFuture<'a, ::tern::error::TernResult<::tern::migration::Query>>
+            ) -> ::tern::future::BoxFuture<'a, ::tern::error::TernResult<::tern::source::Query>>
             {
-                Box::pin(<Self as ::tern::migration::QueryBuilder>::build(self, ctx))
+                Box::pin(<Self as ::tern::source::QueryBuilder>::build(self, ctx))
             }
         }
     }
@@ -420,16 +420,16 @@ impl SqlSourceContainer {
 
         quote! {
             #[automatically_derived]
-            impl ::tern::migration::QueryBuilder for TernMigration {
+            impl ::tern::source::QueryBuilder for TernMigration {
                 type Ctx = #ctx;
 
                 async fn build(
                     &self,
                     ctx: &mut Self::Ctx,
-                ) -> ::tern::error::TernResult<::tern::migration::Query>
+                ) -> ::tern::error::TernResult<::tern::source::Query>
                 {
                     let sql = #content.to_string();
-                    Ok(::tern::migration::Query::new(sql))
+                    Ok(::tern::source::Query::new(sql))
                 }
             }
         }

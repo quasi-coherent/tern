@@ -1,20 +1,19 @@
-//! [`Executor`] for [`sqlx::SqlitePool`][sqlite-pool].
+//! [`Executor`] for [`sqlx::MySqlPool`][mysql-pool].
 //!
-//! [`Executor`]: crate::migration::Executor
-//! [sqlite-pool]: https://docs.rs/sqlx/0.8.3/sqlx/type.SqlitePool.html
-use sqlx::Sqlite;
+//! [`Executor`]: crate::context::Executor
+//! [mysql-pool]: https://docs.rs/sqlx/0.8.5/sqlx/type.MySqlPool.html
+use crate::backend::sqlx_backend::pool::SqlxExecutor;
+use crate::source::{AppliedMigration, Query, QueryRepository};
 
-use super::pool::SqlxExecutor;
-use crate::migration::{AppliedMigration, Query, QueryRepository};
+use sqlx::MySql;
 
-/// Specialization of `SqlxExecutor` to `sqlx::SqlitePool`.
-pub type SqlxSqliteExecutor = SqlxExecutor<Sqlite, SqlxSqliteQueryRepo>;
+/// Specialization of `SqlxExecutor` to `sqlx::MySqlPool`.
+pub type SqlxMySqlExecutor = SqlxExecutor<MySql, SqlxMySqlQueryRepo>;
 
-/// The schema history table queries for postgres.
+/// The schema history table queries for mysql.
 #[derive(Debug, Clone)]
-pub struct SqlxSqliteQueryRepo;
-
-impl QueryRepository for SqlxSqliteQueryRepo {
+pub struct SqlxMySqlQueryRepo;
+impl QueryRepository for SqlxMySqlQueryRepo {
     fn create_history_if_not_exists_query(history_table: &str) -> Query {
         let sql = format!(
             "
@@ -23,7 +22,7 @@ CREATE TABLE IF NOT EXISTS {history_table}(
   description text NOT NULL,
   content text NOT NULL,
   duration_ms bigint NOT NULL,
-  applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 "
         );
@@ -43,7 +42,7 @@ CREATE TABLE IF NOT EXISTS {history_table}(
         let sql = format!(
             "
 INSERT INTO {history_table}(version, description, content, duration_ms, applied_at)
-  VALUES (?1, ?2, ?3, ?4, ?5);
+  VALUES (?, ?, ?, ?, ?);
 "
         );
 
@@ -73,8 +72,13 @@ ORDER BY
         let sql = format!(
             "
 INSERT INTO {history_table}(version, description, content, duration_ms, applied_at)
-  VALUES (?1, ?2, ?3, ?4, ?5)
-  ON CONFLICT REPLACE;
+  VALUES (?, ?, ?, ?, ?)
+  ON DUPLICATE_KEY
+  UPDATE
+    description = VALUES(description),
+    content = VALUES(content),
+    duration_ms = VALUES(duration_ms),
+    applied_at = VALUES(applied_at)
 "
         );
 

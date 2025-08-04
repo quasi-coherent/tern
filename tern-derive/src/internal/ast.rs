@@ -1,5 +1,5 @@
-use syn::Result;
 use syn::spanned::Spanned;
+use syn::Result;
 
 /// Token stream parsed from the `syn::DeriveInput`.
 pub struct Container<'a, Der, Fld> {

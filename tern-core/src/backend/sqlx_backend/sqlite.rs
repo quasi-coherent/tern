@@ -1,20 +1,19 @@
-//! [`Executor`] for [`sqlx::MySqlPool`][mysql-pool].
+//! [`Executor`] for [`sqlx::SqlitePool`][sqlite-pool].
 //!
-//! [`Executor`]: crate::migration::Executor
-//! [mysql-pool]: https://docs.rs/sqlx/0.8.3/sqlx/type.MySqlPool.html
-use sqlx::MySql;
+//! [`Executor`]: crate::context::Executor
+//! [sqlite-pool]: https://docs.rs/sqlx/0.8.5/sqlx/type.SqlitePool.html
+use crate::backend::sqlx_backend::pool::SqlxExecutor;
+use crate::source::{AppliedMigration, Query, QueryRepository};
 
-use super::pool::SqlxExecutor;
-use crate::migration::{AppliedMigration, Query, QueryRepository};
+use sqlx::Sqlite;
 
-/// Specialization of `SqlxExecutor` to `sqlx::MySqlPool`.
-pub type SqlxMySqlExecutor = SqlxExecutor<MySql, SqlxMySqlQueryRepo>;
+/// Specialization of `SqlxExecutor` to `sqlx::SqlitePool`.
+pub type SqlxSqliteExecutor = SqlxExecutor<Sqlite, SqlxSqliteQueryRepo>;
 
-/// The schema history table queries for mysql.
+/// The schema history table queries for postgres.
 #[derive(Debug, Clone)]
-pub struct SqlxMySqlQueryRepo;
-
-impl QueryRepository for SqlxMySqlQueryRepo {
+pub struct SqlxSqliteQueryRepo;
+impl QueryRepository for SqlxSqliteQueryRepo {
     fn create_history_if_not_exists_query(history_table: &str) -> Query {
         let sql = format!(
             "
@@ -23,7 +22,7 @@ CREATE TABLE IF NOT EXISTS {history_table}(
   description text NOT NULL,
   content text NOT NULL,
   duration_ms bigint NOT NULL,
-  applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 );
 "
         );
@@ -43,7 +42,7 @@ CREATE TABLE IF NOT EXISTS {history_table}(
         let sql = format!(
             "
 INSERT INTO {history_table}(version, description, content, duration_ms, applied_at)
-  VALUES (?, ?, ?, ?, ?);
+  VALUES (?1, ?2, ?3, ?4, ?5);
 "
         );
 
@@ -73,13 +72,8 @@ ORDER BY
         let sql = format!(
             "
 INSERT INTO {history_table}(version, description, content, duration_ms, applied_at)
-  VALUES (?, ?, ?, ?, ?)
-  ON DUPLICATE_KEY
-  UPDATE
-    description = VALUES(description),
-    content = VALUES(content),
-    duration_ms = VALUES(duration_ms),
-    applied_at = VALUES(applied_at)
+  VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT REPLACE;
 "
         );
 

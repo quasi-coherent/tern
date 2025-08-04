@@ -238,50 +238,56 @@
 //! [`ContextOptions`]: crate::ContextOptions
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[doc(inline)]
-pub use tern_core::error::{self, DatabaseError, Error, TernResult};
+pub use tern_core::context;
+pub use tern_core::error;
+pub use tern_core::source;
 
+mod app;
 #[doc(inline)]
-pub use tern_core::migration::{
-    self, Executor, Migration, MigrationContext, MigrationSet, Query, QueryBuilder,
-};
+pub use app::{MigrationResult, Report, Tern, TernOp};
 
-#[doc(inline)]
-pub use tern_core::runner::{self, MigrationResult, Report, Runner};
+#[cfg(feature = "cli")]
+#[cfg_attr(docsrs, doc(cfg(feature = "cli")))]
+pub mod cli {
+    //! A command-line interface for a `tern` application.
+    use futures_core::future::Future;
+    use tern_core::context::MigrationContext;
+    use tern_core::error::TernResult;
 
-#[cfg(feature = "sqlx_mysql")]
-#[cfg_attr(docsrs, doc(cfg(feature = "sqlx_mysql")))]
-#[doc(inline)]
-pub use tern_core::executor::sqlx_backend::mysql::SqlxMySqlExecutor;
+    pub use tern_cli::CliOpts;
 
-#[cfg(feature = "sqlx_postgres")]
-#[cfg_attr(docsrs, doc(cfg(feature = "sqlx_postgres")))]
-#[doc(inline)]
-pub use tern_core::executor::sqlx_backend::postgres::SqlxPgExecutor;
+    /// A type that can initialize a `MigrationContext` from a connection string.
+    pub trait ConnectContext {
+        /// The target context for this type.
+        type Ctx: MigrationContext;
 
-#[cfg(feature = "sqlx_sqlite")]
-#[cfg_attr(docsrs, doc(cfg(feature = "sqlx_sqlite")))]
-#[doc(inline)]
-pub use tern_core::executor::sqlx_backend::sqlite::SqlxSqliteExecutor;
+        /// Connect to the backend and create the migration context.
+        fn connect(&self, db_url: &str) -> impl Future<Output = TernResult<Self::Ctx>>;
+    }
+}
 
+/// Provides [`Executor`] implementations for third-party database crates.
+///
+/// [context::Executor]
 pub mod executor {
     #[cfg(feature = "sqlx_mysql")]
-    pub use super::SqlxMySqlExecutor;
+    #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_mysql")))]
+    #[doc(inline)]
+    pub use tern_core::backend::sqlx_backend::mysql::SqlxMySqlExecutor;
     #[cfg(feature = "sqlx_postgres")]
-    pub use super::SqlxPgExecutor;
+    #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_postgres")))]
+    #[doc(inline)]
+    pub use tern_core::backend::sqlx_backend::postgres::SqlxPgExecutor;
     #[cfg(feature = "sqlx_sqlite")]
-    pub use super::SqlxSqliteExecutor;
+    #[cfg_attr(docsrs, doc(cfg(feature = "sqlx_sqlite")))]
+    #[doc(inline)]
+    pub use tern_core::backend::sqlx_backend::sqlite::SqlxSqliteExecutor;
 }
 
 #[doc(hidden)]
 pub mod future {
-    pub use tern_core::future::{BoxFuture, Future};
+    pub use futures_core::future::{BoxFuture, Future};
 }
-
-#[cfg(feature = "cli")]
-#[cfg_attr(docsrs, doc(cfg(feature = "cli")))]
-#[doc(inline)]
-pub use tern_cli::{App, ContextOptions};
 
 #[doc(hidden)]
 extern crate tern_derive;

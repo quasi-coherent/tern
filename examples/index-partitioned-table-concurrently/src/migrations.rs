@@ -1,6 +1,7 @@
+use tern::cli::ConnectContext;
 use tern::error::{DatabaseError as _, TernResult};
 use tern::executor::SqlxPgExecutor;
-use tern::{ContextOptions, MigrationContext};
+use tern::MigrationContext;
 
 #[derive(MigrationContext)]
 #[tern(source = "src/migrations")]
@@ -31,12 +32,12 @@ FROM
   pg_catalog.pg_inherits a
 JOIN
   pg_catalog.pg_class b
-ON a.inhrelid = b.oid
+  ON a.inhrelid = b.oid
 WHERE
   inhparent = 'example.partitioned'::regclass
 ",
         )
-        .fetch_all(&self.executor.pool())
+        .fetch_all(self.executor.pool())
         .await
         .tern_result()?;
 
@@ -47,8 +48,7 @@ WHERE
 /// To be able to use this with the CLI, it needs to know how to build a generic
 /// migration context given a connection string, so `ContextOptions` does this.
 pub struct PgContextOptions;
-
-impl ContextOptions for PgContextOptions {
+impl ConnectContext for PgContextOptions {
     type Ctx = PgMigrationContext;
 
     async fn connect(&self, db_url: &str) -> TernResult<PgMigrationContext> {

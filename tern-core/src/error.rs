@@ -1,15 +1,14 @@
 //! Error type for migration operations.
-use crate::migration::{Migration, MigrationId};
-use crate::runner::{MigrationResult, Report};
+use crate::source::{Migration, MigrationId};
 
 use std::error::Error as StdError;
+use std::fmt::{Debug, Display};
 
 /// Alias for a result whose error type is [`Error`].
 pub type TernResult<T> = Result<T, Error>;
 type BoxDynError = Box<dyn StdError + Send + Sync + 'static>;
 
-/// All the ways the lifecycle of applying migrations
-/// can end in failure.
+/// All the ways the lifecycle of applying migrations can end in failure.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -46,7 +45,13 @@ pub enum Error {
     Invalid(String),
     /// An error occurred, resulting in a partial migration run.
     #[error("migration could not complete: {source}, partial report: {report}")]
-    Partial { source: BoxDynError, report: Report },
+    Partial {
+        source: BoxDynError,
+        report: Box<dyn ReportFmt>,
+    },
+    /// Timed out waiting for a migration lock.
+    #[error("timed out after {0}s waiting for a migration lock")]
+    TimedOut(u64),
 }
 
 impl Error {
@@ -57,6 +62,9 @@ impl Error {
         Self::ResolveQuery(e.to_string())
     }
 }
+
+pub trait ReportFmt: Send + Sync + Debug + Display + 'static {}
+impl<T: Send + Sync + Debug + Display + 'static> ReportFmt for T {}
 
 /// Converting a result with a generic `std::error::Error` to one with this
 /// crate's error type.
@@ -79,10 +87,6 @@ pub trait DatabaseError<T, E> {
 
     /// Same as `tern_migration_result` but discard the returned value.
     fn void_tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<()>;
-
-    /// Attach an array of `MigrationResult`, representing a partially successful
-    /// migration operation, to the error.
-    fn with_report(self, report: &[MigrationResult]) -> TernResult<T>;
 }
 
 impl<T, E> DatabaseError<T, E> for Result<T, E>
@@ -122,16 +126,6 @@ where
                 migration.migration_id(),
                 migration.no_tx(),
             )),
-        }
-    }
-
-    fn with_report(self, migrations: &[MigrationResult]) -> TernResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(e) => Err(Error::Partial {
-                source: Box::new(e),
-                report: Report::new(migrations.to_vec()),
-            }),
         }
     }
 }
