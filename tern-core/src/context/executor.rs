@@ -1,11 +1,10 @@
-//! Provides [`Executor`], which represents a low-level database connection.
+//! Provides [Executor], which represents a low-level database connection.
 use crate::error::TernResult;
 use crate::source::{AppliedMigration, Query, QueryRepository};
 
 use futures_core::future::Future;
 
-/// The underlying executor type is dispatched by [`MigrationContext`] for the
-/// direct interactions with a database.
+/// `Executor` is the query interface for database migration operations.
 pub trait Executor
 where
     Self: Send + Sync + 'static,
@@ -14,10 +13,14 @@ where
     /// migration set.
     type Queries: QueryRepository;
 
-    /// Apply the `Query` for the migration in a transaction.
+    /// Apply the [Query] for the migration in a transaction.
+    ///
+    /// [Query]: crate::source::Query
     fn apply_tx(&mut self, query: &Query) -> impl Future<Output = TernResult<()>> + Send;
 
-    /// Apply the `Query` for the migration _not_ in a transaction.
+    /// Apply the [Query] for the migration _not_ in a transaction.
+    ///
+    /// [Query]: crate::source::Query
     fn apply_no_tx(&mut self, query: &Query) -> impl Future<Output = TernResult<()>> + Send;
 
     /// `CREATE IF NOT EXISTS` the history table.

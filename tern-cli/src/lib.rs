@@ -1,21 +1,40 @@
 use clap::{Args, Parser};
+use futures_core::Future;
+use std::fmt::Debug;
+use tern_core::context::MigrationContext;
+use tern_core::error::TernResult;
+
+pub extern crate clap;
+
+/// A type that can initialize a [MigrationContext] from command line arguments.
+///
+/// [MigrationContext]: tern_core::context::MigrationContext
+pub trait ConnectOptions: Args + Debug {
+    /// The target context for this type.
+    type Ctx: MigrationContext;
+
+    /// Connect to the backend and create the migration context.
+    fn connect(&self) -> impl Future<Output = TernResult<Self::Ctx>>;
+}
 
 /// Command-line interface for running a `tern` migration application
 #[derive(Debug, Parser)]
 #[command(version, about)]
-pub struct CliOpts {
+pub struct CliOpts<C: ConnectOptions> {
+    #[clap(flatten)]
+    pub connect_opts: C,
     #[clap(subcommand)]
     pub opts: Opts,
 }
 
-impl Default for CliOpts {
+impl<C: ConnectOptions> Default for CliOpts<C> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CliOpts {
-    /// Create a new `CliOpts` by parsing command line options.
+impl<C: ConnectOptions> CliOpts<C> {
+    /// Create a new [CliOpts] by parsing command line options.
     pub fn new() -> Self {
         Self::parse()
     }
@@ -48,59 +67,34 @@ pub enum MigrateOpts {
     Apply {
         /// Render the migration report without applying any migrations
         #[arg(short, long)]
-        dryrun: bool,
+        dry_run: bool,
+        /// Skip validating the migration set against the history table
+        #[arg(long)]
+        skip_validate: bool,
         /// Apply unapplied migrations up through this version
         #[arg(long)]
         target_version: Option<i64>,
-        #[clap(flatten)]
-        connect_opts: ConnectOpts,
     },
     /// Insert migrations into the history table without applying them
     SoftApply {
         /// Render the migration report without soft applying any migrations
         #[arg(short, long)]
-        dryrun: bool,
+        dry_run: bool,
+        /// Skip validating the migration set against the history table
+        #[arg(long)]
+        skip_validate: bool,
         /// Soft apply unapplied migrations up through this version
         #[arg(long)]
         target_version: Option<i64>,
-        #[clap(flatten)]
-        connect_opts: ConnectOpts,
     },
     /// List previously applied migrations
-    ListApplied {
-        #[clap(flatten)]
-        connect_opts: ConnectOpts,
-    },
+    ListApplied,
 }
 
 #[derive(Debug, Parser)]
 pub enum HistoryOpts {
     /// Create the schema history table
-    Init {
-        #[clap(flatten)]
-        connect_opts: ConnectOpts,
-    },
+    Init,
     /// Drop the schema history table
-    Drop {
-        #[clap(flatten)]
-        connect_opts: ConnectOpts,
-    },
-}
-
-#[derive(Debug, Args)]
-pub struct ConnectOpts {
-    /// Connection string for the database either from the command line or from
-    /// the environment variable `DATABASE_URL`.
-    #[clap(long, short = 'D', env)]
-    pub database_url: Option<String>,
-}
-
-impl ConnectOpts {
-    pub fn required_db_url(&self) -> anyhow::Result<&str> {
-        self.database_url.as_deref().ok_or_else(
-            || anyhow::anyhow!(
-                "the `--database-url/-D` option or the `DATABASE_URL` environment variable must be provided"
-            )
-        )
-    }
+    Drop,
 }

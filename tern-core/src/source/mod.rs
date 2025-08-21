@@ -1,3 +1,5 @@
+//! Provides the representation of a migration source file needed by a
+//! [MigrationContext](crate::context::MigrationContext).
 mod migration;
 pub use migration::{AppliedMigration, Migration, MigrationId, MigrationSet};
 

@@ -1,7 +1,7 @@
-use tern::cli::ConnectContext;
-use tern::error::TernResult;
+use tern::cli::clap::{self, Args};
+use tern::error::{Error, TernResult};
 use tern::executor::SqlxPgExecutor;
-use tern::MigrationContext;
+use tern::{ConnectOptions, MigrationContext};
 
 /// `SqlxPgExecutor` is a supported connection type and it already implements
 /// `Executor`, so that's the field we decorate with the hint to use it for
@@ -48,15 +48,22 @@ impl GetEnvVar {
     }
 }
 
-/// A type implementing `ContextOptions` is only needed when integrating the CLI
-/// crate.  That's because the CLI creates a `Runner` and accepts the DB url
-/// argument, so the implementation just allows the CLI to work with a generic
-/// context.
-pub struct ExampleOptions;
-impl ConnectContext for ExampleOptions {
+/// The CLI arguments required to build the example context.
+#[derive(Debug, Args)]
+pub struct ExampleOptions {
+    /// Connection string--can be set via the environment variable `DATABASE_URL`
+    #[clap(long, short = 'D', env)]
+    db_url: Option<String>,
+}
+impl ConnectOptions for ExampleOptions {
     type Ctx = ExampleContext;
 
-    async fn connect(&self, db_url: &str) -> TernResult<ExampleContext> {
+    async fn connect(&self) -> TernResult<ExampleContext> {
+        let db_url = self
+            .db_url
+            .as_deref()
+            .ok_or_else(|| Error::Init("missing db connection string".into()))?;
+
         ExampleContext::new(db_url).await
     }
 }

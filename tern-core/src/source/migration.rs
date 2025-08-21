@@ -1,13 +1,17 @@
-//! This module contains the interface for an individual migration.
+//! This module contains the central trait [Migration], which is the interface
+//! for a migration source file to be applied in a target database.
 //!
-//! A `Migration` has a specific context that can run it, presumably the one that
-//! derives `MigrationContext` for a source directory containing it.  It must
-//! describe how its query is to be built using this context.  For Rust
-//! migrations, this is the role of a user's implementation of [`QueryBuilder`].
-//! For static SQL migrations, this is simply the file contents.
+//! A [Migration] is built with a specific [MigrationContext] in mind.  It
+//! describes how its query is to be built using this context and how that query
+//! should be ran against the database.  For Rust migrations, the query is built
+//! according to an implementation of [QueryBuilder].  For static SQL migrations,
+//! it is simply the file contents.
+//!
+//! [MigrationContext]: crate::context::MigrationContext
+//! [QueryBuilder]: crate::source::query::QueryBuilder
 use crate::context::MigrationContext;
 use crate::error::TernResult;
-use crate::source::Query;
+use crate::source::query::Query;
 
 use chrono::{DateTime, Utc};
 use futures_core::future::BoxFuture;
@@ -20,7 +24,7 @@ where
     /// A migration context that is sufficient to build this migration.
     type Ctx: MigrationContext;
 
-    /// Get the `MigrationId` for this migration.
+    /// Get the [MigrationId] for this migration.
     fn migration_id(&self) -> MigrationId;
 
     /// The raw file content of the migration source file, or when stored as an
@@ -38,7 +42,7 @@ where
         self.migration_id().version()
     }
 
-    /// Convert this migration to an [`AppliedMigration`] assuming that it was
+    /// Convert this migration to an [AppliedMigration] assuming that it was
     /// successfully applied.
     fn to_applied(
         &self,
@@ -103,12 +107,10 @@ where
     }
 }
 
-/// Name/version derived from the migration source filename.
+/// Name and version derived from the migration source filename.
 #[derive(Debug, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct MigrationId {
-    /// Version parsed from the migration filename.
     version: i64,
-    /// Description parsed from the migration filename.
     description: String,
 }
 

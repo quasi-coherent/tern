@@ -12,133 +12,147 @@ pub use report::{AttachReport as _, MigrationResult, Report};
 mod validate;
 use validate::Validator;
 
-/// `TernOp` are the operations exposed by `Tern` for a migration context.
+/// `TernBuilder` builds a runnable [Tern] migration app.
 #[derive(Debug, Clone, Copy, Default)]
-pub enum TernOp {
-    /// List all applied migrations.
-    #[default]
-    ListApplied,
-    /// Apply all unapplied migrations.
-    ApplyAll,
-    /// Apply unapplied migrations, up to and including, the target version.
-    ApplyThrough(i64),
-    /// Do a "soft apply" of all unapplied migrations.
-    ///
-    /// This creates a record in the history table for the migration as if it
-    /// were applied, but does not run the query for the migration.  This can be
-    /// useful to sync history with the state of the database or to migrate a
-    /// history table.
-    SoftApplyAll,
-    /// Soft apply unapplied migrations, up to and including, the target version.
-    SoftApplyThrough(i64),
-    /// Create the migration history table.
-    InitHistory,
-    /// Drop the migration history table.
-    DropHistory,
+pub struct TernBuilder {
+    dry_run: bool,
+    skip_validate: bool,
+    target: Option<i64>,
+    op: TernOp,
 }
 
-/// `Tern` is the main application wrapping a given `MigrationContext` and
+impl TernBuilder {
+    /// Return a report detailing what would have been done if it were not a
+    /// dry run.
+    pub fn dry_run(mut self) -> Self {
+        self.dry_run = true;
+        self
+    }
+
+    /// Do not run validation of the local source migrations with the history
+    /// table before the operation.
+    pub fn skip_validate(mut self) -> Self {
+        self.skip_validate = true;
+        self
+    }
+
+    /// Where applicable, only do the operation up to and including the target
+    /// version.
+    pub fn with_target_version(mut self, target: i64) -> Self {
+        self.target = Some(target);
+        self
+    }
+
+    /// Set the operation to initialize the history table.
+    pub fn init_history(mut self) -> Self {
+        self.op = HistoryOp::Init.into();
+        self
+    }
+
+    /// Set the operation to drop the history table.
+    pub fn drop_history(mut self) -> Self {
+        self.op = HistoryOp::Drop.into();
+        self
+    }
+
+    /// Set the operation to list migrations that have been applied.
+    pub fn list_applied(mut self) -> Self {
+        self.op = MigrateOp::ListApplied.into();
+        self
+    }
+
+    /// Set the operation to apply unapplied migrations with this configuration.
+    pub fn apply(mut self) -> Self {
+        self.op = MigrateOp::Apply.into();
+        self
+    }
+
+    /// Set the operation to "soft" apply unapplied migrations with this
+    /// configuration's target version.
+    ///
+    /// A soft apply is one where a migration's query is built and a record is
+    /// created in the history table, but the query is not actually ran.  This
+    /// can be useful when syncing migrations with the state of a database or
+    /// when migrating history tables.
+    pub fn soft_apply(mut self) -> Self {
+        self.op = MigrateOp::SoftApply.into();
+        self
+    }
+
+    /// Build the [Tern] app from this configuration for the given context.
+    pub fn build_with_context<Ctx: MigrationContext>(self, context: Ctx) -> Tern<Ctx> {
+        Tern {
+            context,
+            dry_run: self.dry_run,
+            skip_validate: self.skip_validate,
+            target: self.target,
+            op: self.op,
+        }
+    }
+}
+
+/// `Tern` is the main application wrapping a given [MigrationContext] and
 /// exposing the available operations.
+///
+/// [MigrationContext]: tern_core::context::MigrationContext
 #[derive(Debug, Clone)]
-pub struct Tern<Ctx> {
+pub struct Tern<Ctx = ()> {
     context: Ctx,
-    dryrun: bool,
-    operation: TernOp,
+    dry_run: bool,
+    skip_validate: bool,
+    target: Option<i64>,
+    op: TernOp,
+}
+
+impl Tern {
+    pub fn builder() -> TernBuilder {
+        TernBuilder::default()
+    }
 }
 
 impl<Ctx: MigrationContext> Tern<Ctx> {
-    /// Create a new `Tern` application with default options from the given
-    /// `MigrationContext`.
-    pub fn new(context: Ctx) -> Self {
-        Self {
-            context,
-            dryrun: false,
-            operation: TernOp::default(),
+    /// Run this [Tern] application with the given configuration.
+    pub async fn run(&mut self) -> TernResult<Option<Report>> {
+        match self.op {
+            TernOp::History(history) => {
+                self.run_history(history).await?;
+                Ok(None)
+            }
+            TernOp::Migrate(migrate) => self.run_migrate(migrate).await.map(Some),
         }
     }
 
-    /// Run this `Tern` application.
-    pub async fn run(&mut self) -> TernResult<Option<Report>> {
-        let target = match self.operation {
-            TernOp::InitHistory => {
+    async fn run_history(&mut self, op: HistoryOp) -> TernResult<()> {
+        match op {
+            HistoryOp::Init => {
                 log::trace!(target: "tern", "init history table {}", Ctx::HISTORY_TABLE);
-                self.init_history().await?;
-                return Ok(None);
+                self.context.check_history_table().await
             }
-            TernOp::DropHistory => {
+            HistoryOp::Drop => {
                 log::trace!(target: "tern", "drop history table {}", Ctx::HISTORY_TABLE);
-                self.drop_history().await?;
-                return Ok(None);
+                self.context.drop_history_table().await
             }
-            TernOp::ListApplied => {
-                log::trace!(target: "tern", "list applied {}", Ctx::HISTORY_TABLE);
-                let report = self.list_applied().await?;
-                return Ok(Some(report));
-            }
-            TernOp::ApplyAll | TernOp::SoftApplyAll => None,
-            TernOp::ApplyThrough(n) | TernOp::SoftApplyThrough(n) => Some(n),
-        };
+        }
+    }
 
-        log::trace!(target: "tern", "validate");
-        let mut validator = Validator::new(&mut self.context);
-        validator.validate(target).await?;
+    async fn run_migrate(&mut self, op: MigrateOp) -> TernResult<Report> {
+        if !self.skip_validate {
+            log::trace!(target: "tern", "validate");
+            let mut validator = Validator::new(&mut self.context);
+            validator.validate(self.target).await?;
+        }
 
         // Get the correct subset of migrations: version greater than the last
         // applied and less than or equal to target.
-        //
-        // This will attempt to acquire the migration lock before calculating the
-        // migration set.  If this process wasn't the first to acquire the lock,
-        // the migration set returned will be empty because the last applied is
-        // the target version.
-        let migration_set = self.get_migration_set(target).await?;
+        let migration_set = self.get_migration_set(self.target).await?;
 
-        if self.operation.is_apply() {
-            self.apply(self.dryrun, migration_set).await.map(Some)
-        } else if self.operation.is_soft_apply() {
-            self.soft_apply(self.dryrun, migration_set).await.map(Some)
-        } else {
-            Ok(None)
+        match op {
+            MigrateOp::ListApplied => self.list_applied().await,
+            MigrateOp::Apply => self.apply(self.dry_run, migration_set).await,
+            MigrateOp::SoftApply => self.soft_apply(self.dry_run, migration_set).await,
         }
     }
 
-    /// Return a report of what the operation would do if ran without `dryrun`.
-    pub fn dryrun(mut self) -> Self {
-        self.dryrun = true;
-        self
-    }
-
-    /// Set the operation that should be ran with this configuration.
-    pub fn with_operation(mut self, op: TernOp) -> Self {
-        self.operation = op;
-        self
-    }
-
-    async fn init_history(&mut self) -> TernResult<()> {
-        self.context.check_history_table().await
-    }
-
-    async fn drop_history(&mut self) -> TernResult<()> {
-        self.context.drop_history_table().await
-    }
-
-    async fn list_applied(&mut self) -> TernResult<Report> {
-        let applied = self
-            .context
-            .previously_applied()
-            .await?
-            .iter()
-            .map(|applied| MigrationResult::from_applied(applied, None))
-            .collect();
-
-        let report = Report::new(applied);
-
-        Ok(report)
-    }
-
-    /// Get the set of migrations for the operation.
-    ///
-    /// This is source migrations with version greater than the last applied and
-    /// less than or equal to the target.
     async fn get_migration_set(&mut self, target: Option<i64>) -> TernResult<MigrationSet<Ctx>> {
         // All source migrations (applied or not) through the target version.
         let set = self.context.migration_set(target);
@@ -155,6 +169,20 @@ impl<Ctx: MigrationContext> Tern<Ctx> {
             .collect::<Vec<_>>();
 
         Ok(MigrationSet::new(unapplied))
+    }
+
+    async fn list_applied(&mut self) -> TernResult<Report> {
+        let applied = self
+            .context
+            .previously_applied()
+            .await?
+            .iter()
+            .map(|applied| MigrationResult::from_applied(applied, None))
+            .collect();
+
+        let report = Report::new(applied);
+
+        Ok(report)
     }
 
     async fn apply(&mut self, dryrun: bool, set: MigrationSet<Ctx>) -> TernResult<Report> {
@@ -222,12 +250,44 @@ impl<Ctx: MigrationContext> Tern<Ctx> {
     }
 }
 
-impl TernOp {
-    fn is_apply(&self) -> bool {
-        matches!(self, TernOp::ApplyAll | TernOp::ApplyThrough(_))
-    }
+/// The subcommands of `TernApp`.
+#[derive(Debug, Clone, Copy)]
+enum TernOp {
+    Migrate(MigrateOp),
+    History(HistoryOp),
+}
 
-    fn is_soft_apply(&self) -> bool {
-        matches!(self, TernOp::SoftApplyAll | TernOp::SoftApplyThrough(_))
+impl Default for TernOp {
+    fn default() -> Self {
+        Self::Migrate(MigrateOp::ListApplied)
+    }
+}
+
+/// `MigrateOp` are the possible migration operations.
+#[derive(Debug, Clone, Copy, Default)]
+enum MigrateOp {
+    #[default]
+    ListApplied,
+    Apply,
+    SoftApply,
+}
+
+/// HistoryOp`` are the possible history table operations.
+#[derive(Debug, Clone, Copy, Default)]
+enum HistoryOp {
+    #[default]
+    Init,
+    Drop,
+}
+
+impl From<MigrateOp> for TernOp {
+    fn from(value: MigrateOp) -> Self {
+        Self::Migrate(value)
+    }
+}
+
+impl From<HistoryOp> for TernOp {
+    fn from(value: HistoryOp) -> Self {
+        Self::History(value)
     }
 }

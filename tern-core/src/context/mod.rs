@@ -1,4 +1,4 @@
-//! Provides [`MigrationContext`], which is the main interface for performing
+//! Provides [MigrationContext], which is the main interface for performing
 //! operations with a migration set.
 use crate::error::{DatabaseError as _, TernResult};
 use crate::source::{AppliedMigration, Migration, MigrationSet};
@@ -25,14 +25,20 @@ where
     /// The type for executing queries in a migration run; a connection object.
     type Exec: Executor;
 
-    /// Get a mutable reference to the underlying `Executor`.
+    /// Get a mutable reference to the underlying [Executor].
+    ///
+    /// [Executor]: crate::context::Executor
     fn executor(&mut self) -> &mut Self::Exec;
 
     /// Get a migration set given the `target_version`.
     fn migration_set(&self, target_version: Option<i64>) -> MigrationSet<Self>;
 
-    /// For a migration over this context, `apply` builds the migration query,
-    /// runs it, then update the schema history table.
+    /// Apply the migration, returning an [AppliedMigration] on success.
+    ///
+    /// This method builds the query for the migration, executes the query, then
+    /// inserts the corresponding record into the migration history table.
+    ///
+    /// [AppliedMigration]: crate::source::AppliedMigration
     fn apply<'migration, 'conn: 'migration, M>(
         &'conn mut self,
         migration: &'migration M,
@@ -68,7 +74,7 @@ where
         })
     }
 
-    /// Gets the version of the most recently applied migration.
+    /// Returns the version of the most recently applied migration.
     fn latest_version(&mut self) -> BoxFuture<'_, TernResult<Option<i64>>> {
         Box::pin(async move {
             let latest = self
@@ -86,7 +92,8 @@ where
         })
     }
 
-    /// Get all previously applied migrations.
+    /// Returns all migrations that have already been applied as a collection of
+    /// [AppliedMigration](crate::source::AppliedMigration).
     fn previously_applied(&mut self) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
         Box::pin(self.executor().get_all_applied(Self::HISTORY_TABLE))
     }
@@ -99,7 +106,7 @@ where
         )
     }
 
-    /// Drop the history table if requested.
+    /// Drop the history table.
     fn drop_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
         Box::pin(self.executor().drop_history(Self::HISTORY_TABLE))
     }

@@ -5,7 +5,7 @@ use tern::Tern;
 async fn main() {
     env_logger::init();
 
-    match Tern::run_cli(PgContextOptions).await {
+    match Tern::run_cli::<PgContextOptions>().await {
         Ok(Some(report)) => report
             .iter_results()
             .for_each(|result| log::info!("{result}")),

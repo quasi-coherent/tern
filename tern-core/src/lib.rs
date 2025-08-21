@@ -1,4 +1,4 @@
-//! The core of the [`tern`][tern-docs] migration library.
+//! The core of the [tern][tern-docs] migration library.
 //!
 //! This crate has types and traits for building migrations and running them
 //! with a third-party database crate of choice.

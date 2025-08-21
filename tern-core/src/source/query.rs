@@ -6,12 +6,12 @@ use futures_core::Future;
 use regex::Regex;
 use std::fmt::Write;
 
-/// A helper trait for [`Migration`].
+/// A helper trait for [Migration](crate::source::migration::Migration).
 ///
 /// The user implements this for Rust migrations.
-/// [`Migration`]: crate::source::migration::Migration
 pub trait QueryBuilder {
-    /// The context for running the migration this query is for.
+    /// The [MigrationContext](crate::context::MigrationContext) for running the
+    /// migration this query is for.
     type Ctx: MigrationContext;
 
     /// Asynchronously produce the migration query.
@@ -83,7 +83,7 @@ impl Query {
     /// backends.  A line starting with `#`, for instance, will not be treated as
     /// a comment since this is only valid in MySql.  Unsupported comment format
     /// can have unpredictable and undesirable outcome.
-    pub fn split_statements(&self) -> TernResult<Vec<String>> {
+    pub(crate) fn split_statements(&self) -> TernResult<Vec<String>> {
         let mut statements = Vec::new();
         self.sanitize()
             .lines()

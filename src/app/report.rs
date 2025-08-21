@@ -28,7 +28,7 @@ where
     }
 }
 
-/// A formatted version of a collection of migrations.
+/// A collection of formatted migration results.
 #[derive(Clone, Serialize, DebugAsJson, DisplayAsJsonPretty, Default)]
 pub struct Report {
     migrations: Vec<MigrationResult>,
@@ -50,8 +50,7 @@ impl Report {
     }
 }
 
-/// A formatted version of a migration that is the return type for `Runner`
-/// actions.
+/// A formatted migration result.
 #[derive(Clone, Serialize, DebugAsJson, DisplayAsJsonPretty)]
 #[allow(dead_code)]
 pub struct MigrationResult {

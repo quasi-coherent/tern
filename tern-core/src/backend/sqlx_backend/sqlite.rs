@@ -1,13 +1,12 @@
-//! [`Executor`] for [`sqlx::SqlitePool`][sqlite-pool].
-//!
-//! [`Executor`]: crate::context::Executor
-//! [sqlite-pool]: https://docs.rs/sqlx/0.8.5/sqlx/type.SqlitePool.html
 use crate::backend::sqlx_backend::pool::SqlxExecutor;
 use crate::source::{AppliedMigration, Query, QueryRepository};
 
 use sqlx::Sqlite;
 
-/// Specialization of `SqlxExecutor` to `sqlx::SqlitePool`.
+/// Specialization of [SqlxExecutor] to [SqlitePool].
+///
+/// [SqlxExecutor]: crate::backend::sqlx_backend::pool::SqlxExecutor
+/// [SqlitePool]: sqlx::SqlitePool
 pub type SqlxSqliteExecutor = SqlxExecutor<Sqlite, SqlxSqliteQueryRepo>;
 
 /// The schema history table queries for postgres.

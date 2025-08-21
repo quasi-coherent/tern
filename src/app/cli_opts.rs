@@ -1,103 +1,86 @@
-use crate::app::{Report, Tern, TernOp};
-use crate::cli::ConnectContext;
+use crate::app::{Report, Tern};
 
-use tern_cli::{CliOpts, HistoryOpts, MigrateOpts, Opts};
+use tern_cli::{CliOpts, ConnectOptions, HistoryOpts, MigrateOpts, Opts};
 use tern_core::context::MigrationContext;
-use tern_core::error::{Error, TernResult};
+use tern_core::error::TernResult;
 
 impl<Ctx: MigrationContext> Tern<Ctx> {
-    /// Run this `Tern` application directly by parsing CLI options to get
-    /// arguments for the operation and for creating the `MigrationContext` from
-    /// a connection string using the implementation of a
-    /// [`ConnectContext`][conn].
+    /// Run this [Tern] application directly by parsing CLI options to get
+    /// arguments for the operation and for creating a [MigrationContext].
     ///
-    /// [`ConnectContext`]: crate::cli::ConnectContxt
+    /// [Tern]: crate::app::Tern
+    /// [MigrationContext]: tern_core::context::MigrationContext
     #[cfg_attr(docsrs, doc(cfg(feature = "cli")))]
-    pub async fn run_cli<T>(conn: T) -> TernResult<Option<Report>>
+    pub async fn run_cli<C>() -> TernResult<Option<Report>>
     where
-        T: ConnectContext<Ctx = Ctx>,
+        C: ConnectOptions<Ctx = Ctx>,
     {
-        let cli = CliOpts::new();
+        let cli = CliOpts::<C>::new();
+        let conn = cli.connect_opts;
+        let context = conn.connect().await?;
 
         match cli.opts {
             Opts::Migrate(migrate) => match migrate.opts {
-                MigrateOpts::ListApplied { connect_opts } => {
-                    let db_url = connect_opts
-                        .required_db_url()
-                        .map_err(|e| Error::Invalid(e.to_string()))?;
-
-                    let context = conn.connect(db_url).await?;
-                    let mut app = Tern::new(context);
-
-                    app.run().await
+                MigrateOpts::ListApplied => {
+                    Tern::builder()
+                        .list_applied()
+                        .build_with_context(context)
+                        .run()
+                        .await
                 }
                 MigrateOpts::Apply {
-                    dryrun,
+                    dry_run,
+                    skip_validate,
                     target_version,
-                    connect_opts,
                 } => {
-                    let db_url = connect_opts
-                        .required_db_url()
-                        .map_err(|e| Error::Invalid(e.to_string()))?;
+                    let mut builder = Tern::builder().apply();
 
-                    let context = conn.connect(db_url).await?;
-
-                    let mut app = match target_version {
-                        Some(v) => Tern::new(context).with_operation(TernOp::ApplyThrough(v)),
-                        _ => Tern::new(context).with_operation(TernOp::ApplyAll),
-                    };
-
-                    if dryrun {
-                        app = app.dryrun();
+                    if dry_run {
+                        builder = builder.dry_run();
+                    }
+                    if skip_validate {
+                        builder = builder.skip_validate();
+                    }
+                    if let Some(v) = target_version {
+                        builder = builder.with_target_version(v);
                     }
 
-                    app.run().await
+                    builder.build_with_context(context).run().await
                 }
                 MigrateOpts::SoftApply {
-                    dryrun,
+                    dry_run,
+                    skip_validate,
                     target_version,
-                    connect_opts,
                 } => {
-                    let db_url = connect_opts
-                        .required_db_url()
-                        .map_err(|e| Error::Invalid(e.to_string()))?;
+                    let mut builder = Tern::builder().soft_apply();
 
-                    let context = conn.connect(db_url).await?;
-
-                    let mut app = match target_version {
-                        Some(v) => Tern::new(context).with_operation(TernOp::SoftApplyThrough(v)),
-                        _ => Tern::new(context).with_operation(TernOp::SoftApplyAll),
-                    };
-
-                    if dryrun {
-                        app = app.dryrun();
+                    if dry_run {
+                        builder = builder.dry_run();
+                    }
+                    if skip_validate {
+                        builder = builder.skip_validate();
+                    }
+                    if let Some(v) = target_version {
+                        builder = builder.with_target_version(v);
                     }
 
-                    app.run().await
+                    builder.build_with_context(context).run().await
                 }
             },
             Opts::History(history) => match history.opts {
-                HistoryOpts::Init { connect_opts } => {
-                    let db_url = connect_opts
-                        .required_db_url()
-                        .map_err(|e| Error::Invalid(e.to_string()))?;
-
-                    let context = conn.connect(db_url).await?;
-
-                    let mut app = Tern::new(context).with_operation(TernOp::InitHistory);
-
-                    app.run().await
+                HistoryOpts::Init => {
+                    Tern::builder()
+                        .init_history()
+                        .build_with_context(context)
+                        .run()
+                        .await
                 }
-                HistoryOpts::Drop { connect_opts } => {
-                    let db_url = connect_opts
-                        .required_db_url()
-                        .map_err(|e| Error::Invalid(e.to_string()))?;
-
-                    let context = conn.connect(db_url).await?;
-
-                    let mut app = Tern::new(context).with_operation(TernOp::DropHistory);
-
-                    app.run().await
+                HistoryOpts::Drop => {
+                    Tern::builder()
+                        .drop_history()
+                        .build_with_context(context)
+                        .run()
+                        .await
                 }
             },
         }
