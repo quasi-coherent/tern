@@ -1,18 +1,20 @@
 //! Error type for migration operations.
-use crate::migration::{Migration, MigrationId};
-use crate::runner::{MigrationResult, Report};
+use crate::source::{Migration, MigrationId};
 
 use std::error::Error as StdError;
+use std::fmt::{Debug, Display};
 
-/// Alias for a result whose error type is [`Error`].
+/// Alias for a result whose error type is [Error].
 pub type TernResult<T> = Result<T, Error>;
 type BoxDynError = Box<dyn StdError + Send + Sync + 'static>;
 
-/// All the ways the lifecycle of applying migrations
-/// can end in failure.
+/// All the ways the lifecycle of applying migrations can end in failure.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Error arising from initialization.
+    #[error("could not initialize migration application: {0}")]
+    Init(#[source] BoxDynError),
     /// An error that came from applying migrations.
     #[error("error applying migrations {0}")]
     Execute(#[source] BoxDynError),
@@ -46,7 +48,10 @@ pub enum Error {
     Invalid(String),
     /// An error occurred, resulting in a partial migration run.
     #[error("migration could not complete: {source}, partial report: {report}")]
-    Partial { source: BoxDynError, report: Report },
+    Partial {
+        source: BoxDynError,
+        report: Box<dyn ReportFmt>,
+    },
 }
 
 impl Error {
@@ -58,31 +63,27 @@ impl Error {
     }
 }
 
-/// Converting a result with a generic `std::error::Error` to one with this
-/// crate's error type.
-///
-/// The `*_migration_result` methods allow attaching a migration to the error,
-/// such as the one being handled when the error occurred.  The `with_report`
-/// method allows attaching a slice of `MigrationResult` to the error to show
-/// what collection of the migration set did succeed in being applied before the
-/// error was encountered.
+#[doc(hidden)]
+pub trait ReportFmt: Send + Sync + Debug + Display + 'static {}
+impl<T: Send + Sync + Debug + Display + 'static> ReportFmt for T {}
+
+/// `DatabaseError` provides methods for converting generic errors into [Error]
+/// with or without the context of a [Migration](crate::source::Migration).
 pub trait DatabaseError<T, E> {
-    /// Convert `E` to an [`Error`].
+    /// Convert `E` to an [Error].
     fn tern_result(self) -> TernResult<T>;
 
-    /// Same as `tern_result` but discard the returned value.
+    /// Same as [tern_result](DatabaseError::tern_result) but discard the
+    /// returned value.
     fn void_tern_result(self) -> TernResult<()>;
 
-    /// Convert `E` to an [`Error`] that has a given migration in the error
-    /// type's source.
+    /// Convert `E` to an [Error] that has a given migration in the error type's
+    /// source.
     fn tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<T>;
 
-    /// Same as `tern_migration_result` but discard the returned value.
+    /// Same as [tern_migration_result](DatabaseError::tern_migration_result) but
+    /// discard the returned value.
     fn void_tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<()>;
-
-    /// Attach an array of `MigrationResult`, representing a partially successful
-    /// migration operation, to the error.
-    fn with_report(self, report: &[MigrationResult]) -> TernResult<T>;
 }
 
 impl<T, E> DatabaseError<T, E> for Result<T, E>
@@ -122,16 +123,6 @@ where
                 migration.migration_id(),
                 migration.no_tx(),
             )),
-        }
-    }
-
-    fn with_report(self, migrations: &[MigrationResult]) -> TernResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(e) => Err(Error::Partial {
-                source: Box::new(e),
-                report: Report::new(migrations.to_vec()),
-            }),
         }
     }
 }

@@ -1,19 +1,17 @@
-//! [`Executor`] for [`sqlx::SqlitePool`][sqlite-pool].
-//!
-//! [`Executor`]: crate::migration::Executor
-//! [sqlite-pool]: https://docs.rs/sqlx/0.8.3/sqlx/type.SqlitePool.html
+use crate::backend::sqlx_backend::pool::SqlxExecutor;
+use crate::source::{AppliedMigration, Query, QueryRepository};
+
 use sqlx::Sqlite;
 
-use super::pool::SqlxExecutor;
-use crate::migration::{AppliedMigration, Query, QueryRepository};
-
-/// Specialization of `SqlxExecutor` to `sqlx::SqlitePool`.
+/// Specialization of [SqlxExecutor] to [SqlitePool].
+///
+/// [SqlxExecutor]: crate::backend::sqlx_backend::pool::SqlxExecutor
+/// [SqlitePool]: sqlx::SqlitePool
 pub type SqlxSqliteExecutor = SqlxExecutor<Sqlite, SqlxSqliteQueryRepo>;
 
 /// The schema history table queries for postgres.
 #[derive(Debug, Clone)]
 pub struct SqlxSqliteQueryRepo;
-
 impl QueryRepository for SqlxSqliteQueryRepo {
     fn create_history_if_not_exists_query(history_table: &str) -> Query {
         let sql = format!(
@@ -74,7 +72,7 @@ ORDER BY
             "
 INSERT INTO {history_table}(version, description, content, duration_ms, applied_at)
   VALUES (?1, ?2, ?3, ?4, ?5)
-  ON CONFLICT REPLACE;
+ON CONFLICT REPLACE;
 "
         );
 

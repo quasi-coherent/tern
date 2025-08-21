@@ -1,17 +1,20 @@
-//! [`Executor`] for the generic [`sqlx::Pool`][sqlx-pool], a pool of `sqlx`
-//! database connections.
+//! [Executor] for the generic [Pool][sqlx-pool], a pool of `sqlx` database
+//! connections.
 //!
-//! [`Executor`]: crate::migration::Executor
-//! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
+//! [Executor]: crate::context::Executor
+//! [sqlx-pool]: https://docs.rs/sqlx/0.8.6/sqlx/struct.Pool.html
+use crate::context::Executor as MigrationExecutor;
 use crate::error::{DatabaseError as _, TernResult};
-use crate::migration::{AppliedMigration, Executor as MigrationExecutor, Query, QueryRepository};
+use crate::source::{AppliedMigration, Query, QueryRepository};
 
 use chrono::{DateTime, Utc};
 use sqlx::pool::PoolOptions;
 use sqlx::{Acquire, Connection, Database, Encode, Executor, FromRow, IntoArguments, Pool, Type};
 use std::marker::PhantomData;
 
-/// The generic `sqlx::Pool` as a migration executor backend.
+/// The generic [Pool] as a migration executor backend.
+///
+/// [Pool]: sqlx::Pool
 pub struct SqlxExecutor<Db, Q>
 where
     Db: Database,
@@ -49,17 +52,26 @@ where
         })
     }
 
-    /// Exposing the underlying connection object for usage involving queries
-    /// beyond what `Executor` details.
-    pub fn pool(&self) -> Pool<Db> {
-        self.pool.clone()
+    /// Obtain a reference to the underlying [Pool].
+    ///
+    /// [Pool]: sqlx::Pool
+    pub fn pool(&self) -> &Pool<Db> {
+        &self.pool
+    }
+
+    /// Obtain a mutable reference to the underlying [Pool].
+    ///
+    /// [Pool]: sqlx::Pool
+    pub fn pool_mut(&mut self) -> &mut Pool<Db> {
+        &mut self.pool
     }
 }
 
-/// `SqlxExecutor` can be an [`Executor`] fairly straightforwardly when enough
-/// bounds involving `Db: sqlx::Database` are added to make it compile.
+/// `SqlxExecutor` can be an [Executor] fairly straightforwardly when enough
+/// bounds on the [Database] `Db` are added to make it compile.
 ///
-/// [`Executor`]: crate::migration::Executor
+/// [Executor]: crate::migration::Executor
+/// [Database]: sqlx::Database
 impl<Db, Q> MigrationExecutor for SqlxExecutor<Db, Q>
 where
     Self: Send + Sync + 'static,
@@ -123,12 +135,12 @@ where
         Ok(applied)
     }
 
-    /// This expects [`insert_into_history_query`] to have placeholders for
-    /// `bind`ing the fields of the `AppliedMigration`, and that they appear in
-    /// the same order as they do in the [`AppliedMigration`] struct.
+    /// This expects [insert_into_history_query] to have placeholders for
+    /// `bind`ing the fields of the [AppliedMigration], and that they appear in
+    /// the same order as they do in the [AppliedMigration] struct.
     ///
-    /// [`insert_into_history_query`]: crate::migration::QueryRepository::insert_into_history_query
-    /// [`AppliedMigration`]: crate::migration::AppliedMigration
+    /// [insert_into_history_query]: crate::source::query::QueryRepository::insert_into_history_query
+    /// [AppliedMigration]: crate::source::migration::AppliedMigration
     async fn insert_applied_migration(
         &mut self,
         history_table: &str,
@@ -148,11 +160,11 @@ where
         Ok(())
     }
 
-    /// Like [`insert_applied_migration`] this expects a query with placeholders
-    /// lining up with the order of [`AppliedMigration`] fields.
+    /// Like [insert_applied_migration] this expects a query with placeholders
+    /// lining up with the order of [AppliedMigration] fields.
     ///
-    /// [`insert_applied_migration`]: Self::insert_applied_migration
-    /// [`AppliedMigration`]: crate::migration::AppliedMigration
+    /// [insert_applied_migration]: Self::insert_applied_migration
+    /// [AppliedMigration]: crate::source::migration::AppliedMigration
     async fn upsert_applied_migration(
         &mut self,
         history_table: &str,

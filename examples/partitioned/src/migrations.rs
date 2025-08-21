@@ -1,8 +1,9 @@
-use tern::error::{DatabaseError as _, TernResult};
-use tern::{ContextOptions, SqlxPgExecutor};
-use tern::{MigrationContext, MigrationSource};
+use tern::cli::clap::{self, Args};
+use tern::error::{DatabaseError as _, Error, TernResult};
+use tern::executor::SqlxPgExecutor;
+use tern::{ConnectOptions, MigrationContext};
 
-#[derive(MigrationContext, MigrationSource)]
+#[derive(MigrationContext)]
 #[tern(source = "src/migrations")]
 pub struct PgMigrationContext {
     #[tern(executor_via)]
@@ -31,12 +32,12 @@ FROM
   pg_catalog.pg_inherits a
 JOIN
   pg_catalog.pg_class b
-ON a.inhrelid = b.oid
+  ON a.inhrelid = b.oid
 WHERE
   inhparent = 'example.partitioned'::regclass
 ",
         )
-        .fetch_all(&self.executor.pool())
+        .fetch_all(self.executor.pool())
         .await
         .tern_result()?;
 
@@ -44,14 +45,23 @@ WHERE
     }
 }
 
-/// To be able to use this with the CLI, it needs to know how to build a generic
-/// migration context given a connection string, so `ContextOptions` does this.
-pub struct PgContextOptions;
+/// CLI arguments required to build the context.
+#[derive(Debug, Args)]
+pub struct PgContextOptions {
+    /// Connection string--can be set via the environment variable `DATABASE_URL`
+    #[clap(long, short = 'D', env)]
+    db_url: Option<String>,
+}
 
-impl ContextOptions for PgContextOptions {
+impl ConnectOptions for PgContextOptions {
     type Ctx = PgMigrationContext;
 
-    async fn connect(&self, db_url: &str) -> TernResult<PgMigrationContext> {
+    async fn connect(&self) -> TernResult<PgMigrationContext> {
+        let db_url = self
+            .db_url
+            .as_deref()
+            .ok_or_else(|| Error::Init("missing db connection string".into()))?;
+
         PgMigrationContext::new(db_url).await
     }
 }

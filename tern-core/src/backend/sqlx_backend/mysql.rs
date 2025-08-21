@@ -1,19 +1,17 @@
-//! [`Executor`] for [`sqlx::MySqlPool`][mysql-pool].
-//!
-//! [`Executor`]: crate::migration::Executor
-//! [mysql-pool]: https://docs.rs/sqlx/0.8.3/sqlx/type.MySqlPool.html
+use crate::backend::sqlx_backend::pool::SqlxExecutor;
+use crate::source::{AppliedMigration, Query, QueryRepository};
+
 use sqlx::MySql;
 
-use super::pool::SqlxExecutor;
-use crate::migration::{AppliedMigration, Query, QueryRepository};
-
-/// Specialization of `SqlxExecutor` to `sqlx::MySqlPool`.
+/// Specialization of [SqlxExecutor] to [MySqlPool].
+///
+/// [SqlxExecutor]: crate::backend::sqlx_backend::pool::SqlxExecutor
+/// [MySqlPool]: sqlx::MySqlPool
 pub type SqlxMySqlExecutor = SqlxExecutor<MySql, SqlxMySqlQueryRepo>;
 
 /// The schema history table queries for mysql.
 #[derive(Debug, Clone)]
 pub struct SqlxMySqlQueryRepo;
-
 impl QueryRepository for SqlxMySqlQueryRepo {
     fn create_history_if_not_exists_query(history_table: &str) -> Query {
         let sql = format!(

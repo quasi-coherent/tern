@@ -1,19 +1,17 @@
-//! [`Executor`] for [`sqlx::PgPool`][pg-pool].
-//!
-//! [`Executor`]: crate::migration::Executor
-//! [pg-pool]: https://docs.rs/sqlx/0.8.3/sqlx/type.PgPool.html
+use crate::backend::sqlx_backend::pool::SqlxExecutor;
+use crate::source::{AppliedMigration, Query, QueryRepository};
+
 use sqlx::Postgres;
 
-use super::pool::SqlxExecutor;
-use crate::migration::{AppliedMigration, Query, QueryRepository};
-
-/// Specialization of `SqlxExecutor` to `sqlx::PgPool`.
+/// Specialization of [SqlxExecutor] to [PgPool].
+///
+/// [SqlxExecutor]: crate::backend::sqlx_backend::pool::SqlxExecutor
+/// [PgPool]: sqlx::PgPool
 pub type SqlxPgExecutor = SqlxExecutor<Postgres, SqlxPgQueryRepo>;
 
 /// The schema history table queries for postgres.
 #[derive(Debug, Clone)]
 pub struct SqlxPgQueryRepo;
-
 impl QueryRepository for SqlxPgQueryRepo {
     fn create_history_if_not_exists_query(history_table: &str) -> Query {
         let sql = format!(

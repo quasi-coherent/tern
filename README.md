@@ -12,83 +12,90 @@
 
 <!-- cargo-rdme start -->
 
-A database migration library and CLI supporting embedded migrations written
-in SQL or Rust.
+`tern` is a database migration library, application, and CLI supporting
+embedded migrations written in SQL or Rust.
 
-It obviously aims to support plain SQL migrations, but expands to work with
-migration queries written in Rust that possibly need to be built at the time
-of being applied, while being agnostic to the particular choice of crate for
-database interaction.
-
-## Executors
-
-The `Executor` trait defines methods representing the minimum required to
-connect to a database, run migration queries, and interact with the migration
-history table.  Right now, `tern` supports all of the [`sqlx`][sqlx-repo]
-pool types via [`Pool`][sqlx-pool], which includes PostgreSQL, MySQL, and
-SQLite. These can be enabled via feature flag.
-
-### Contributing
-
-Supporting more third-party crates would definitely be nice!  If one you like
-is not available here, please feel free to contribute, either with a PR or
-feature request.  Adding a new executor seems like it should not be hard.
-Outside of additional backend types, we are very open and happy to hear
-suggestions for how the project could be improved; simply open an issue with
-the label "enhancement".  Defects or general issues detracting from usage
-should also be reported in an issue, and it will be addressed immediately.
+- Migrations are embedded, compiled into the final binary.
+- Migrations can be written in pure SQL or built dynamically in Rust with an
+  arbitrary context.
+- Supports PostgreSQL, MySQL, and SQLite, and is compatible with any choice
+  of database client crate.
+- Allows running migration queries outside of a database transaction.
+- Permits custom naming of the history table, so that it can manage multiple,
+  concurrent migration sets in the same database.
 
 ## Usage
 
-Migrations are defined in a directory within a Rust project's source.
-This directory can contain `.rs` and `.sql` files having names matching the
-regex `^V(\d+)__(\w+)\.(sql|rs)$`, e.g., `V13__create_a_table.sql` or
-`V5__create_a_different_table.rs`.
+For more in-depth usage, see the [examples][examples-repo] directory.
 
-An operation over these migrations involves validating the entire set,
-collecting the ones that are needed, resolving queries having a runtime
-dependency on a user-defined context if necessary, and then performing the
-operation in order.  This workflow goes by appealing to the following derive
-macros:
+### Quickstart
 
-* `MigrationSource`: Collects the migrations for use in the operation by
-  parsing the directory into a validated, prepared, sorted, and uniform
-  collection, and exposing methods to return a given subset.
-* `MigrationContext`: A type providing context to perform the operation
-  on the migrations passed from `MigrationSource` given some parameters.
-
-Put together, it looks like this.
+All together, a `tern` migration application looks something like this.
 
 ```rust
-use tern::{MigrationSource, MigrationContext, Runner, SqlxPgExecutor};
+use tern::{MigrationContext, Tern};
+use tern::executor::SqlxPgExecutor;
 
 /// `$CARGO_MANIFEST_DIR/src/migrations` is a collection of migration files.
 /// The optional `table` attribute permits a custom location for a migration
-/// history table in the target database.
-#[derive(MigrationSource, MigrationContext)]
-#[tern(source = "src/migrations", table = "example")]
+/// history table in the target database.  By default, the table
+/// `_tern_migrations` is created to track history.
+#[derive(MigrationContext)]
+#[tern(source = "src/migrations", table = "example_history")]
 struct Example {
-   // `Example` itself needs to be an executor without this annotation.
-   #[tern(executor_via)]
+    /// A `MigrationContext` has an associated "executor" type, which is
+    /// essentially the database connection type.  The macro attribute here
+    /// instructs where to find this executor.  Without it, the type itself
+    /// would need to implement the executor interface.
+    #[tern(executor_via)]
     executor: SqlxPgExecutor,
 }
 
-let executor = SqlxPgExecutor::new("postgres://user@localhost").await.unwrap();
-let context = Example { executor };
-let mut runner = Runner::new(context);
-let report: tern::Report = runner.run_apply_all(false).await.unwrap();
-println!("migration run report: {report}");
+async fn main() {
+    let executor = SqlxPgExecutor::new("postgres://user@localhost")
+        .await
+        .unwrap();
+    let context = Example { executor };
+
+    // `Tern` is the main application.  It is built from a context
+    // and it uses it in the various operations that are supported.
+    let app = Tern::builder()
+        .apply()
+        .build_with_context(context);
+
+    // `report` is a pretty-printable array of the migrations that were
+    // applied.
+    let Ok(Some(report)) = app.run().await else {
+        println!("error!");
+    };
+
+    println!("migrations applied successfully: {report}");
+}
 ```
 
-For more in-depth examples, see the [examples][examples-repo].
+### Migrations
 
-## SQL migrations
+Migrations are defined in a directory within a Rust project's source. This
+directory can contain `.rs` and `.sql` files having names matching the regex
+`^V(\d+)__(\w+)\.(sql|rs)$`, e.g., `V13__create_a_table.sql` or
+`V5__create_a_different_table.rs`.
 
-Since migrations are embedded in the final executable and static SQL
-migrations are not Rust source, any change to a SQL migration won't force
-a recompilation.  The proc macro that parses these files will then not be
-up-to-date, and this can cause confusing issues.  To remedy, a `build.rs`
-file should be put in the crate root with these contents:
+A `tern` migration application centers on a type that derives the trait
+[`MigrationContext`] for a directory of migration files.  The directory,
+which is a module in a Rust project, has a simple organizational requirement.
+
+- The type deriving `MigrationContext` needs to be defined in the module
+  containing the migrations.
+
+For example, if all the .sql and .rs migration files are in `src/migrations/`
+then the `MigrationContext` type should be in either `src/migrations.rs` or
+`src/migrations/mod.rs`.
+
+One thing to note is that, since these files are embedded in the final
+executable and static SQL migrations are not Rust source, any change to a SQL
+migration won't force a recompilation.  This can cause confusing issues with
+the derive macros when they aren't re-compiled.  To remedy, a `build.rs` file
+should be put in the crate root with these contents:
 
 ```rust
 fn main() {
@@ -96,45 +103,25 @@ fn main() {
 }
 ```
 
-## Rust migrations
+### Rust migrations
 
-Migrations can be written in Rust, and these can take advantage of the
-arbitrary migration context to flexibly build the query at runtime.  For
-this to work, `MigrationSource` and `MigrationContext` get us nearly there,
-but the user needs to follow a couple rules and write a simple implementation
-of a trait to complete the requirements.
+A migration written in Rust has two additional requirements:
 
-The first rule is that the type deriving `MigrationSource` needs to be
-declared in the immediate parent module of the migrations.  So if
-`source = "src/migrations"`, a perfect place to put the type that derives
-`MigrationContext` and `MigrationSource` is in `src/migrations.rs`, which
-would have to exist in any case. Depending on preference, the module
-`migrations` can also be a `mod.rs` living next to the migrations. This is
-required because ultimately each migration defines a module and we need to
-reference that module and members of it when expanding syntax.  The simplest
-way is to assume this module hierarchy.
+- It contains a type `TernMigration` that derives [`Migration`].
+- The trait [`QueryBuilder`] is implemented for `TernMigration`.
 
-The other requirement is that there needs to be a struct that is called
-`TernMigration` in any Rust migration source file, and that it derives a
-third macro, `Migration`.  `Migration` doesn't contribute much, but the
-struct deriving it is still needed because of another implementation detail
-of the macros: we need a way for the `Migration` macro to share data with the
-other two macros, the alternative being to parse the entire token stream of a
-Rust source file in the course of `MigrationSource` performing its duties,
-clearly a less appealing option.
-
-This `TernMigration` is needed because the last thing that's required is a
-user-defined method on it that provides instructions for how to build its
-query using the migration context.
+The first is an implementation detail of derive macros.  The second is of
+course required because a migration needs a query to run!
 
 ```rust
-use tern::{Query, QueryBuilder, Migration};
+use tern::Migration;
 use tern::error::TernResult;
+use tern::source::{Query, QueryBuilder};
 
 use super::Example;
 
 /// Use the optional macro attribute `#[tern(no_transaction)]` to avoid
-/// running this in a database transaction.
+/// running this query in a database transaction.
 #[derive(Migration)]
 pub struct TernMigration;
 
@@ -142,34 +129,24 @@ impl QueryBuilder for TernMigration {
     /// The custom-defined migration context.
     type Ctx = Example;
 
-    /// When `await`ed, this should produce a valid SQL query wrapped by
-    /// `Query`.  This is what will run against the database.
+    /// When `await`ed, this should produce a valid SQL query.
     async fn build(&self, ctx: &mut Self::Ctx) -> TernResult<Query> {
         // Really anything can happen here.  It just depends on what
         // `Self::Ctx` can do.
         let sql = "SELECT 1;";
         let query = Query::new(sql);
+
         Ok(query)
     }
 }
 ```
 
-## Reversible migrations
+### Database transactions
 
-As of now, the official stance is to not support an up-down style of
-migration set, the philosophy being that down migrations are not that useful
-in practice and introduce problems just as they solve others. The section
-"Important Notes" in [this][flyway-undo] flyway documentation summarizes our
-feelings well.
-
-## Database transactions
-
-By default, a migration and its accompanying schema history table update are
-ran together in a database transaction.  Sometimes this is not desirable and
-other times it is not even allowed.  For instance, in postgres you cannot
-create an index `CONCURRENTLY` in a transaction.  To give the user the option,
-`tern` understands certain annotations and will not run that migration in a
-database transaction if they are present.
+By default, a migration is ran in a database transaction.  Sometimes this is
+not desirable and other times it is not even allowed.  For instance, in
+PostgreSQL you cannot create an index `CONCURRENTLY` in a transaction.  The
+user can opt out of this with certain annotations that `tern` understands.
 
 For a SQL migration:
 
@@ -192,15 +169,63 @@ pub struct TernMigration;
 
 ## CLI
 
-With the feature flag "cli" enabled the type `App` is exported, which is a
-CLI wrapping `Runner` methods that can be imported into your own migration
-project to turn it into a CLI, provided that the migration context has an
-implementation of `ContextOptions` which simply says how to create the
-context from a connection string.
+When the feature flag "cli" is enabled, `Tern` exposes a
+method `run_cli` that packages the same
+operations and options with a command line argument parser.  The arguments
+need to include a user-defined type implementing [`clap::Args`] and
+[`ConnectOptions`] for initializing the migration context.
+
+```rust
+use tern::cli::clap::{self, Args};
+use tern::error::{Error, TernResult};
+use tern::executor::SqlxPgExecutor;
+use tern::{ConnectOptions, MigrationContext, Tern};
+
+#[derive(MigrationContext)]
+#[tern(source = "src/migrations", table = "example_history")]
+struct Example {
+   // `Example` itself needs to be an executor without this annotation.
+   #[tern(executor_via)]
+    executor: SqlxPgExecutor,
+}
+
+// Custom CLI argument(s) required to build this context.
+#[derive(Debug, Args)]
+struct ExampleOptions {
+    /// Connection string
+    #[clap(long, short = 'D', env)]
+    db_url: Option<String>,
+}
+
+impl ConnectOptions for ExampleOptions {
+    type Ctx = Example;
+
+    async fn connect(&self) -> TernResult<Example> {
+       let db_url = self
+           .db_url
+           .as_deref()
+           .ok_or_else(|| Error::Init("missing db connection string".into()))?;
+        let executor = SqlxPgExecutor::new(db_url).await?
+
+        Ok(Example { executor })
+    }
+}
+
+async fn main() {
+    // Operation and parameters are parsed as command line arguments.
+    match Tern::run_cli::<ConnectExample>().await {
+        Err(e) => println!("error {e}"),
+        Ok(Some(report)) => println!("success: {report}"),
+        _ => println!("OK"),
+    }
+}
+```
+
+This would be used as follows:
 
 ```terminal
-> $ my-migration-project --help
-Usage: my-migration-project <COMMAND>
+> $ example --help
+Usage: example <COMMAND>
 
 Commands:
   migrate  Operations on the set of migration files
@@ -208,41 +233,30 @@ Commands:
   help     Print this message or the help of the given subcommand(s)
 
 Options:
+-D, --db-url <DB_URL> Connection string [env: DB_URL=]
 -h, --help  Print help
 
-> $ my-migration-project migrate --help
+> $ example migrate --help
 Operations on the set of migration files
-Usage: my-migration-project migrate <COMMAND>
+Usage: example migrate <COMMAND>
 
 Commands:
-  apply         Run the apply operation for a specific range of unapplied migrations
-  apply-all     Run any available unapplied migrations
+  apply         Run the apply operation for all unapplied versions or a range of versions
   soft-apply    Insert migrations into the history table without applying them
   list-applied  List previously applied migrations
-  new           Create a migration with the description and an auto-selected version
   help          Print this message or the help of the given subcommand(s)
 
 Options:
+-D, --db-url <DB_URL> Connection string [env: DB_URL=]
 -h, --help  Print help
-
-> $ my-migration-project history --help
-Operations on the table storing the history of these migrations
-
-Usage: my-migration-project history <COMMAND>
-
-Commands:
-  init        Create the schema history table
-  drop        Drop the schema history table
-  help        Print this message or the help of the given subcommand(s)
-
-Options:
-  -h, --help  Print help
 ```
 
+[`MigrationContext`]: tern_core::context::MigrationContext
 [examples-repo]: https://github.com/quasi-coherent/tern/tree/master/examples
-[sqlx-repo]: https://github.com/launchbadge/sqlx
-[sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
-[flyway-undo]: https://documentation.red-gate.com/fd/migrations-184127470.html#Migrations-UndoMigrations
+[`Migration`]: tern_core::source::Migration
+[`QueryBuilder`]: tern_core::source::QueryBuilder
+[`clap::Args`]: https://docs.rs/clap/4.5.45/clap/trait.Args.html
+[`ConnectOptions`]: tern_cli::ConnectOptions
 
 <!-- cargo-rdme end -->
 
