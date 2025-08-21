@@ -15,17 +15,6 @@
 A database migration library and CLI supporting embedded migrations written
 in SQL or Rust, compatible with any underlying third-party database crate.
 
-### Contributing
-
-Supporting more database backends would definitely be nice!  If one you like
-is not available here, please feel free to contribute, either with a PR or
-feature request.  Adding a new one seems like it should not be hard.
-
-Outside of additional backend types, we are very open and happy to hear
-suggestions for how the project could be improved; simply open an issue with
-the label "enhancement".  Defects or general issues detracting from usage
-should also be reported in an issue; these will be addressed immediately.
-
 ## Usage
 
 Migrations are defined in a directory within a Rust project's source. This
@@ -33,14 +22,10 @@ directory can contain `.rs` and `.sql` files having names matching the regex
 `^V(\d+)__(\w+)\.(sql|rs)$`, e.g., `V13__create_a_table.sql` or
 `V5__create_a_different_table.rs`.
 
-The Tern type is the main application and it exposes one
-method, run, for performing some operation given a
-set of source migrations.  A `Tern` application has a builder interface for
-specifying the operation and options.  To build the application from a
-builder, a [MigrationContext] needs to be supplied, which can be satisfied
-using the provided derive macro.  A `MigrationContext` has an associated
-[Executor] type, which represents the underlying database connection.
-
+The `Tern` type is the main application for performing an
+operation given a set of source migrations, but it needs a user-defined
+[`MigrationContext`] to be built.  This crate provides a derive macro for
+`MigrationContext`.
 
 Put together, it looks like this:
 
@@ -54,8 +39,11 @@ use tern::executor::SqlxPgExecutor;
 #[derive(MigrationContext)]
 #[tern(source = "src/migrations", table = "example_history")]
 struct Example {
-   // `Example` itself needs to be an executor without this annotation.
-   #[tern(executor_via)]
+    /// A `MigrationContext` has an associated type that implements
+    /// `tern::context::Executor` and this macro attribute points to
+    /// what should be used for that.  Without it, the type itself must
+    /// implement `Executor`.
+    #[tern(executor_via)]
     executor: SqlxPgExecutor,
 }
 
@@ -96,9 +84,9 @@ fn main() {
 
 Migrations can be written in Rust, and these can take advantage of the
 migration context to flexibly build the query at runtime.  All migrations,
-SQL or Rust, are required to implement [Migration].  This is automatic for
+SQL or Rust, are required to implement [`Migration`].  This is automatic for
 migrations written in pure SQL, but for one written in Rust an implementation
-of [QueryBuilder] needs to be supplied.  This simply demonstrates how the
+of [`QueryBuilder`] needs to be supplied.  This simply demonstrates how the
 query for this migration is defined.
 
 ```rust
@@ -169,11 +157,11 @@ pub struct TernMigration;
 
 ## CLI
 
-When the feature flag "cli" is enabled, Tern exposes a
+When the feature flag "cli" is enabled, `Tern` exposes a
 method `run_cli` that packages the same
 operations and options with a command line argument parser.  The arguments
-include a user-defined type implementing [clap::Args] and [ConnectOptions]
-for initializing the migration context.
+include a user-defined type implementing [`clap::Args`] and
+[`ConnectOptions`] for initializing the migration context.
 
 ```rust
 use tern::cli::clap::{self, Args};
@@ -251,15 +239,14 @@ Options:
 -h, --help  Print help
 ```
 
-[Executor]: tern_core::context::Executor
 [sqlx-repo]: https://github.com/launchbadge/sqlx
-[MigrationContext]: tern_core::context::MigrationContext
+[`MigrationContext`]: tern_core::context::MigrationContext
 [examples-repo]: https://github.com/quasi-coherent/tern/tree/master/examples
-[Migration]: tern_core::source::Migration
-[QueryBuilder]: tern_core::source::QueryBuilder
+[`Migration`]: tern_core::source::Migration
+[`QueryBuilder`]: tern_core::source::QueryBuilder
 [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
-[clap::Args]: https://docs.rs/clap/4.5.45/clap/trait.Args.html
-[ConnectOptions]: tern_cli::ConnectOptions
+[`clap::Args`]: https://docs.rs/clap/4.5.45/clap/trait.Args.html
+[`ConnectOptions`]: tern_cli::ConnectOptions
 
 <!-- cargo-rdme end -->
 
