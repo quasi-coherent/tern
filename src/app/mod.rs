@@ -125,11 +125,11 @@ impl<Ctx: MigrationContext> Tern<Ctx> {
     async fn run_history(&mut self, op: HistoryOp) -> TernResult<()> {
         match op {
             HistoryOp::Init => {
-                log::trace!(target: "tern", "init history table {}", Ctx::HISTORY_TABLE);
+                log::warn!(target: "tern", "init history table {}", Ctx::HISTORY_TABLE);
                 self.context.check_history_table().await
             }
             HistoryOp::Drop => {
-                log::trace!(target: "tern", "drop history table {}", Ctx::HISTORY_TABLE);
+                log::warn!(target: "tern", "drop history table {}", Ctx::HISTORY_TABLE);
                 self.context.drop_history_table().await
             }
         }
@@ -206,7 +206,7 @@ impl<Ctx: MigrationContext> Tern<Ctx> {
                 continue;
             }
 
-            log::trace!(target: "tern", "applying migration {id}");
+            log::info!(target: "tern", "applying migration {id}");
             let result = self
                 .context
                 .apply(migration.as_ref())
@@ -236,7 +236,7 @@ impl<Ctx: MigrationContext> Tern<Ctx> {
             let result = MigrationResult::from_soft_applied(&applied, dryrun);
 
             if !dryrun {
-                log::trace!(target: "tern", "soft applying migration {id}");
+                log::info!(target: "tern", "soft applying migration {id}");
                 self.context
                     .insert_applied(&applied)
                     .await

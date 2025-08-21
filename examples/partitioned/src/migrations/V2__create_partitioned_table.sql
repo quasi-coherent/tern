@@ -7,7 +7,7 @@ CREATE TABLE example.partitioned(
 )
 PARTITION BY RANGE (created_at);
 
--- Partitioned tables cannot have unique indixces unless they contain the
+-- Partitioned tables cannot have unique indices unless they contain the
 -- partition key.
 CREATE INDEX partitioned_created_at_id_idx ON example.partitioned(created_at, id);
 

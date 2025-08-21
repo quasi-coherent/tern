@@ -821,18 +821,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "index-partitioned-table-concurrently"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "log",
- "sqlx",
- "tern",
- "tokio",
-]
-
-[[package]]
 name = "indexmap"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1151,6 +1139,18 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "partitioned"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "log",
+ "sqlx",
+ "tern",
+ "tokio",
 ]
 
 [[package]]

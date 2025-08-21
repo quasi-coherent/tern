@@ -1,4 +1,4 @@
-# index-partitioned-table-concurrently
+# partitioned
 
 A standard index build in postgres locks out writes on the table until it is
 done, so to avoid this interruption of service, an index can be created with the
@@ -16,7 +16,7 @@ the names of the individual partitions are, and moreover, these partitions could
 be created and detached periodically, so the collection of partitions to index
 is different at any given time.
 
-This example demonstrates an approach to address these difficulties.
+This example demonstrates an approach to address these challenges.
 
 [partitioned-table]: https://www.postgresql.org/docs/current/ddl-partitioning.html
 [pg-index-docs]: https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY

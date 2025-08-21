@@ -1,4 +1,4 @@
-use index_partitioned_table_concurrently::PgContextOptions;
+use partitioned::PgContextOptions;
 use tern::Tern;
 
 #[tokio::main]
