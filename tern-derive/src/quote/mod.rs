@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
-use syn::spanned::Spanned;
 use syn::Result;
+use syn::spanned::Spanned;
 
 use crate::internal::ast::ParseAttr;
 

@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * [[#26]]: Ignore hidden files in migration directory during `MigrationSource` proc macro expansion.
   * Error produced with invalid macro attribute path.
-  * Internal logic for splitting statments in a `no_tx` scenario allows block comments `/* ... */`.
+  * Internal logic for splitting statements in a `no_tx` scenario allows block comments `/* ... */`.
 
 ## 3.0.0 - 2025-01-17
 

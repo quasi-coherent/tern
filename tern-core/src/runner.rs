@@ -471,6 +471,10 @@ mod tests {
         let result = super::check_migrations_in_sync(applied, source);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == divergence));
+        let Error::OutOfSync { mut at_issue, .. } = err else {
+            panic!("expected Error::OutOfSync");
+        };
+        at_issue.sort_by_key(|migration| migration.version());
+        assert_eq!(divergence, at_issue);
     }
 }

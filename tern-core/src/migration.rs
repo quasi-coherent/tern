@@ -15,7 +15,7 @@
 use crate::error::{DatabaseError as _, TernResult};
 
 use chrono::{DateTime, Utc};
-use futures_core::{future::BoxFuture, Future};
+use futures_core::{Future, future::BoxFuture};
 use std::{fmt::Write, time::Instant};
 
 /// The context in which a migration run occurs.
