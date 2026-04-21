@@ -1,4 +1,4 @@
-use syn::{parse_macro_input, DeriveInput};
+use syn::{DeriveInput, parse_macro_input};
 
 mod internal;
 mod quote;
@@ -12,7 +12,7 @@ mod quote;
 ///
 /// ## Usage
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// use tern::Migration;
 ///
 /// /// Then implement `tern::QueryBuilder` for this type.
@@ -50,7 +50,7 @@ pub fn migration(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///
 /// ## Usage
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// use tern::{SqlxPgExecutor, MigrationContext};
 ///
 /// #[derive(MigrationContext)]
@@ -86,7 +86,7 @@ pub fn migration_context(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 ///
 /// ## Usage
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// use tern::{SqlxPgExecutor, MigrationSource};
 ///
 /// #[derive(MigrationSource)]

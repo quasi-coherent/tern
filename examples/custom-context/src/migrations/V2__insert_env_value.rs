@@ -18,9 +18,9 @@
 //! whatever the $USER is and the maximum value of the `z` column in `dmd_test`.
 //! So the query has to be built dynamically at the time when the migration is
 //! applied, which is what `QueryBuilder` exists for.
-use tern::error::{TernResult, Error};
-use tern::migration::{Query, QueryBuilder};
 use tern::Migration;
+use tern::error::{Error, TernResult};
+use tern::migration::{Query, QueryBuilder};
 
 use super::ExampleContext;
 
