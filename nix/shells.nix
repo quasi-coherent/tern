@@ -5,10 +5,10 @@
     {
       devShells.default =
         let
-          formatter = self'.formatter;
+          rust-stable = self'.packages.rust-stable;
           fmtt = pkgs.writeShellApplication {
             name = "fmtt";
-            text = ''${lib.getExe formatter} "$@"'';
+            text = ''${lib.getExe self'.formatter} "$@"'';
           };
         in
         (inputs.crane.mkLib pkgs).devShell {
@@ -17,8 +17,10 @@
           packages = [
             fmtt
             pkgs.cachix
-            self'.packages.rust-stable.toolchain
+            rust-stable.toolchain
           ];
+
+          RUST_SRC_PATH = "${rust-stable.rust-src}/lib/rustlib/src/rust/library";
         };
     };
 }

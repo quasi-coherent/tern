@@ -2,12 +2,15 @@
   perSystem.treefmt = {
     projectRootFile = "flake.nix";
     programs = {
-      rustfmt = {
-        enable = true;
-        edition = "2024";
-      };
+      rustfmt.enable = true;
       nixfmt.enable = true;
       typos.enable = true;
+    };
+    settings.formatter.rustfmt = {
+      options = [
+        "--config-path"
+        "rustfmt.toml"
+      ];
     };
   };
 }

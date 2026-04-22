@@ -9,7 +9,6 @@ let
     let
       rust-stable = inputs'.fenix.packages.stable;
       craneLib = (inputs.crane.mkLib pkgs).overrideToolchain rust-stable.toolchain;
-
       src = craneLib.cleanCargoSource ../.;
 
       inherit (craneLib.crateNameFromCargoToml { inherit src; }) version;
@@ -55,11 +54,9 @@ let
 
       packages = {
         inherit rust-stable tern;
-
         default = tern;
 
         tern-deps = cargoArtifacts;
-
         tern-cli = mkTernPackage "tern-cli";
         tern-core = mkTernPackage "tern-core";
         tern-derive = mkTernPackage "tern-derive";
