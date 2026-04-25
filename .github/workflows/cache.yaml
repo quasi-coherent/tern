@@ -3,9 +3,12 @@
 # (typically under flake.actions-nix.workflows.".github/workflows/cache.yaml") and run:
 #   nix run .#render-workflows
 # Or commit to trigger the pre-commit hook if enabled.
+concurrency:
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
 jobs:
-  cachix-cache-deps:
-    runs-on: ubuntu-latest
+  cache-build:
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
     - uses: cachix/install-nix-action@v30
@@ -13,10 +16,14 @@ jobs:
         nix_path: nixpkgs=channel:nixos-unstable
     - uses: cachix/cachix-action@v17
       with:
+        name: quasi-coherent
+    - uses: cachix/cachix-action@v17
+      with:
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
         name: quasi-coherent
-    - name: Cache build deps
+    - name: nix build
       run: nix build
+    timeout-minutes: 60
 'on':
   push:
     branches:

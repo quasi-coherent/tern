@@ -16,8 +16,9 @@
 // [1]: https://github.com/HelgeSverre/sql-splitter/issues/40
 use std::io::{BufRead, BufReader, Read};
 
+/// The variant of SQL syntax contained in a source file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(super) enum SqlDialect {
+pub enum SqlDialect {
     MySql,
     #[default]
     Postgres,

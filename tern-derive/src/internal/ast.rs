@@ -1,4 +1,49 @@
-use syn::{Result, spanned::Spanned};
+use syn::Result;
+use syn::spanned::Spanned;
+
+/// Parse attributes found at any level of the ast.
+///
+/// It's always the same procedure, just a different starting input (represented by `I`).
+pub trait ParseAttr<I>: Default {
+    /// Get correct level of attributes.
+    fn attrs(input: &I) -> impl Iterator<Item = &syn::Attribute>;
+
+    /// Logic to update based on matching `attr`s.
+    fn update(&mut self, attr: &syn::Attribute) -> Result<()>;
+
+    fn parse_ast(input: &I) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let mut init = Self::default();
+        for attr in Self::attrs(input) {
+            init.update(attr)?;
+        }
+        Ok(init)
+    }
+}
+
+/// Skip attribute parsing.
+#[derive(Default)]
+pub struct SkipParseAttr;
+
+impl ParseAttr<syn::DeriveInput> for SkipParseAttr {
+    fn attrs(_: &syn::DeriveInput) -> impl Iterator<Item = &syn::Attribute> {
+        std::iter::empty::<&syn::Attribute>()
+    }
+    fn update(&mut self, _: &syn::Attribute) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl ParseAttr<syn::Field> for SkipParseAttr {
+    fn attrs(_: &syn::Field) -> impl Iterator<Item = &syn::Attribute> {
+        std::iter::empty::<&syn::Attribute>()
+    }
+    fn update(&mut self, _: &syn::Attribute) -> Result<()> {
+        Ok(())
+    }
+}
 
 /// Token stream parsed from the `syn::DeriveInput`.
 pub struct Container<'a, Der, Fld> {
@@ -7,7 +52,7 @@ pub struct Container<'a, Der, Fld> {
     /// Derive attributes.
     pub attrs: Der,
     /// The fields of the struct.
-    pub fields: Fields<'a, Fld>,
+    pub fields: Vec<Field<'a, Fld>>,
 }
 
 impl<'a, Der, Fld> Container<'a, Der, Fld>
@@ -31,30 +76,21 @@ where
     }
 
     /// Fields of a struct parsed from the `syn::DeriveInput`.
-    fn fields(input: &'a syn::Fields) -> Result<Fields<'a, Fld>> {
-        let style: Style;
+    fn fields(input: &'a syn::Fields) -> Result<Vec<Field<'a, Fld>>> {
         let fields = match &input {
-            syn::Fields::Named(fields_named) => {
-                style = Style::Named;
-                fields_named.named.iter()
-            },
+            syn::Fields::Named(fields_named) => fields_named.named.iter(),
             syn::Fields::Unnamed(fields_unnamed) => {
-                style = if fields_unnamed.unnamed.len() == 1 {
-                    Style::Newtype
-                } else {
-                    Style::Tuple
-                };
                 fields_unnamed.unnamed.iter()
             },
             syn::Fields::Unit => {
-                return Ok(Fields { style: Style::Unit, fields: Vec::new() });
+                return Ok(Vec::new());
             },
         }
         .enumerate()
         .map(|(i, input)| Field::parse_ast(i, input))
         .collect::<Result<Vec<_>>>()?;
 
-        Ok(Fields { style, fields })
+        Ok(fields)
     }
 }
 
@@ -62,34 +98,12 @@ where
 pub struct Type<'a> {
     /// The name of the type.
     pub ident: &'a syn::Ident,
-    /// If it has any generic parameters and/or lifetimes.
+    // TODO
     #[allow(dead_code)]
-    pub generics: &'a syn::Generics,
-}
-
-/// The style of struct.
-#[derive(Debug, Clone, Copy)]
-pub enum Style {
-    /// Named fields.
-    Named,
-    /// One unnamed field.
-    Newtype,
-    /// More than one unnamed field.
-    Tuple,
-    /// No fields.
-    Unit,
-}
-
-/// All the fields of the struct.
-#[derive(Clone)]
-pub struct Fields<'a, Fld> {
-    #[allow(dead_code)]
-    pub style: Style,
-    pub fields: Vec<Field<'a, Fld>>,
+    generics: &'a syn::Generics,
 }
 
 /// A field in the struct.
-#[derive(Clone)]
 pub struct Field<'a, Fld> {
     pub member: syn::Member,
     pub ty: &'a syn::Type,
@@ -108,64 +122,5 @@ where
         let ty = &input.ty;
         let attrs = Fld::parse_ast(input)?;
         Ok(Self { member, ty, attrs })
-    }
-
-    #[allow(dead_code)]
-    pub fn is_option(&self) -> bool {
-        matches!(self.ty, syn::Type::Path(p) if p.path.segments.first().is_some_and(|s| s.ident == "Option"))
-    }
-}
-
-/// Parse attributes found at any level of the ast.
-///
-/// It's always the same procedure, just a different starting input (represented by `I`).
-pub trait ParseAttr<I> {
-    /// Initialize empty attributes.
-    fn init() -> Self;
-
-    /// Get correct level of attributes.
-    fn attrs(input: &I) -> impl Iterator<Item = &syn::Attribute>;
-
-    /// Logic to update based on matching `attr`s.
-    fn update(&mut self, attr: &syn::Attribute) -> Result<()>
-    where
-        Self: Sized;
-
-    fn parse_ast(input: &I) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let mut init = Self::init();
-        for attr in Self::attrs(input) {
-            init.update(attr)?;
-        }
-        Ok(init)
-    }
-}
-
-/// Skip attribute parsing.
-pub struct SkipParseAttr;
-
-impl ParseAttr<syn::DeriveInput> for SkipParseAttr {
-    fn init() -> Self {
-        SkipParseAttr
-    }
-    fn attrs(_: &syn::DeriveInput) -> impl Iterator<Item = &syn::Attribute> {
-        std::iter::empty::<&syn::Attribute>()
-    }
-    fn update(&mut self, _: &syn::Attribute) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl ParseAttr<syn::Field> for SkipParseAttr {
-    fn init() -> Self {
-        SkipParseAttr
-    }
-    fn attrs(_: &syn::Field) -> impl Iterator<Item = &syn::Attribute> {
-        std::iter::empty::<&syn::Attribute>()
-    }
-    fn update(&mut self, _: &syn::Attribute) -> Result<()> {
-        Ok(())
     }
 }

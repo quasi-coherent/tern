@@ -1,16 +1,44 @@
-{ lib, ... }:
+{ lib, inputs, ... }:
 let
   perSystem =
-    { crane, ... }:
+    {
+      crane,
+      inputs',
+      pkgs,
+      ...
+    }:
     let
       root = ../.;
 
       # The smallest fileset contains the Cargo.toml and the Cargo.lock file to
       # build only the workspace deps.
       cargoTomlAndLock = crane.fileset.cargoTomlAndLock root;
-      # The set of *.rs, Cargo.toml, Cargo.lock files.
+
+      # Add the set of all *.rs, Cargo.toml, Cargo.lock files.
       src = crane.fileset.commonCargoSources root;
 
+      # `src` but with additional assets.
+      #
+      # The test migrations contain sql files and these are filtered out of
+      # the source usually, so we have to explicitly include the directory that
+      # contains the migrations, else only the ones that happen to be written in
+      # Rust survive, and you get errors about how you can't start a migration
+      # set at version 6.
+      #
+      # Also do this for the examples because `cargo t` builds both test and
+      # example targets.
+      srcWithExtras = lib.fileset.toSource {
+        inherit root;
+
+        fileset = lib.fileset.unions [
+          src
+          ../examples/simple_lib/migrations
+          ../tests/migrations
+        ];
+      };
+
+      # Workspace crate name and version.  Important to remember that `version`
+      # is shared by all member crates here but that doesn't need to be true.
       inherit (crane.crateNameFromCargoToml { src = crane.cleanCargoSource ../.; }) pname version;
 
       args = {
@@ -47,21 +75,12 @@ let
           cargoBuildExtraArgs = "--all-features -p ${pname}";
         };
 
-      # Individual crates as flake outputs.
+      # Package the workspace members.
+      tern = mkTernPackage "tern";
       tern-cli = mkTernPackage "tern-cli";
       tern-core = mkTernPackage "tern-core";
       tern-derive = mkTernPackage "tern-derive";
-
-      # The root package.
-      tern = crane.buildPackage {
-        inherit cargoArtifacts;
-        inherit (args)
-          src
-          pname
-          version
-          strictDeps
-          ;
-      };
+      tern-executor = mkTernPackage "tern-executor";
     in
     {
       packages = {
@@ -70,29 +89,50 @@ let
           tern-cli
           tern-core
           tern-derive
+          tern-executor
           ;
 
+        # nix build
         default = tern;
+
+        tern-docs =
+          let
+            # The `crane` input is built against the stable toolchain of fenix,
+            # but `--cfg=docsrs` requires the nightly toolchain. And we require
+            # `--cfg=docsrs`.
+            nightly = inputs'.fenix.packages.latest;
+            craneNightly = (inputs.crane.mkLib pkgs).overrideToolchain nightly.toolchain;
+          in
+          craneNightly.cargoDoc {
+            inherit (args)
+              src
+              strictDeps
+              pname
+              version
+              ;
+            inherit cargoArtifacts;
+            cargoExtraArgs = "-Zunstable-options --cfg=docsrs";
+          };
       };
 
       checks = {
-        # Build the crates as part of `nix flake check` for convenience.
+        # Build all workspace members as part of checks.
         inherit
           tern
           tern-cli
           tern-core
           tern-derive
+          tern-executor
           ;
 
         tern-clippy = crane.cargoClippy {
           inherit (args)
-            src
             strictDeps
             pname
             version
             ;
-
           inherit cargoArtifacts;
+          src = srcWithExtras;
           cargoClippyExtraArgs = "--all-features --all-targets -- -Dwarnings";
         };
 
@@ -103,19 +143,8 @@ let
             version
             ;
           inherit cargoArtifacts;
-
+          src = srcWithExtras;
           cargoTestExtraArgs = "--all-features --all-targets";
-          # We need to add the migration directories for the examples since
-          # everywhere else they're filtered out and we need them to compile
-          # tests (which includes `examples`).
-          src = lib.fileset.toSource {
-            inherit root;
-            fileset = lib.fileset.unions [
-              src
-              ../examples/dynamic/migrations
-              ../examples/simple/migrations
-            ];
-          };
         };
       };
     };

@@ -2,7 +2,6 @@
 {
   imports = [
     inputs.treefmt-nix.flakeModule
-    inputs.actions-nix.flakeModules.default
 
     ./ci
     ./crate.nix

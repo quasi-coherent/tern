@@ -12,24 +12,15 @@ name = "tern_core"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = []
-
-sqlx = ["dep:sqlx", "sqlx/chrono", "sqlx/derive"]
-sqlx_postgres = ["sqlx/postgres"]
-sqlx_mysql = ["sqlx/mysql"]
-sqlx_sqlite = ["sqlx/sqlite"]
+sqlx_derive = ["dep:sqlx"]
 
 [dependencies]
-chrono = { version = "0.4.44", features = ["serde"] }
-display_json = "0.2.1"
-futures-core = "0.3.31"
+chrono = { workspace = true }
+futures-core = { workspace = true }
 log = { workspace = true }
 regex = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 sqlx = { workspace = true, optional = true }
-thiserror = "2.0.18"
+thiserror = { workspace = true }
