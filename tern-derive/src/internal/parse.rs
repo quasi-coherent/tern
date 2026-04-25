@@ -1,42 +1,44 @@
 use regex::Regex;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::{env, ffi::OsStr, fs, sync::OnceLock};
+use std::sync::OnceLock;
 
-pub fn cargo_manifest_dir() -> PathBuf {
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+pub(crate) fn cargo_manifest_dir() -> PathBuf {
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     PathBuf::from(manifest_dir)
 }
 
 fn filename_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^V(\d+)__(\w+)\.(sql|rs)$").unwrap())
+    RE.get_or_init(|| Regex::new(r"^(V|U|D)(\d+)__(\w+)\.(sql|rs)$").unwrap())
 }
 
 #[derive(Debug, Clone)]
-pub struct SqlSource {
-    pub module: String,
-    pub version: i64,
-    pub description: String,
-    pub content: String,
-    pub no_tx: bool,
+pub(crate) struct SqlSource {
+    pub(crate) module: String,
+    pub(crate) version: i64,
+    pub(crate) description: String,
+    pub(crate) content: String,
+    pub(crate) no_tx: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct RustSource {
-    pub module: String,
-    pub version: i64,
-    pub description: String,
-    pub content: String,
+pub(crate) struct RustSource {
+    pub(crate) module: String,
+    pub(crate) version: i64,
+    pub(crate) description: String,
+    pub(crate) content: String,
 }
 
 #[derive(Debug, Clone)]
-pub enum MigrationSource {
+pub(crate) enum MigrationSource {
     Sql(SqlSource),
     Rs(RustSource),
 }
 
 impl MigrationSource {
-    pub fn from_migration_dir(
+    pub(crate) fn from_migration_dir(
         migration_dir: impl AsRef<Path>,
     ) -> Result<Vec<MigrationSource>, SourceError> {
         let location = migration_dir.as_ref().canonicalize().map_err(|e| {
@@ -55,14 +57,23 @@ impl MigrationSource {
             Self::Sql(s) => s.version,
             Self::Rs(s) => s.version,
         });
-        Validator::new(sources.iter().map(|v| v.migration_id()).collect::<Vec<_>>()).validate()?;
+        Validator::new(
+            sources.iter().map(|v| v.migration_id()).collect::<Vec<_>>(),
+        )
+        .validate()?;
 
         Ok(sources)
     }
 
-    fn parse_sources(location: PathBuf) -> Result<Vec<MigrationSource>, SourceError> {
-        let sources = fs::read_dir(location)
-            .map_err(|_| SourceError::Directory("could not read migration directory".to_string()))?
+    fn parse_sources(
+        location: PathBuf,
+    ) -> Result<Vec<MigrationSource>, SourceError> {
+        let sources = std::fs::read_dir(location)
+            .map_err(|_| {
+                SourceError::Directory(
+                    "could not read migration directory".to_string(),
+                )
+            })?
             .filter_map(|entry| {
                 let e = entry.ok()?;
                 if e.file_name()
@@ -82,16 +93,12 @@ impl MigrationSource {
 
     fn migration_id(&self) -> (i64, String) {
         match self {
-            Self::Sql(SqlSource {
-                version,
-                description,
-                ..
-            }) => (*version, description.clone()),
-            Self::Rs(RustSource {
-                version,
-                description,
-                ..
-            }) => (*version, description.clone()),
+            Self::Sql(SqlSource { version, description, .. }) => {
+                (*version, description.clone())
+            },
+            Self::Rs(RustSource { version, description, .. }) => {
+                (*version, description.clone())
+            },
         }
     }
 
@@ -115,11 +122,12 @@ impl MigrationSource {
                 r"format is `^V(\d+)__(\w+)\.(sql|rs)$`, got {:?}",
                 filepath.to_str(),
             )))?;
-        let version: i64 = ver
-            .parse()
-            .map_err(|_| SourceError::Name("invalid version, expected i64".to_string()))?;
+        let version: i64 = ver.parse().map_err(|_| {
+            SourceError::Name("invalid version, expected i64".to_string())
+        })?;
         let source_type = SourceType::from_ext(ext)?;
-        let content = fs::read_to_string(filepath).map_err(|e| SourceError::Io(e.to_string()))?;
+        let content = std::fs::read_to_string(filepath)
+            .map_err(|e| SourceError::Io(e.to_string()))?;
         let module = module
             .to_str()
             .ok_or(SourceError::Name(
@@ -137,7 +145,7 @@ impl MigrationSource {
                     no_tx,
                 };
                 Self::Sql(sql_source)
-            }
+            },
             _ => {
                 let rust_source = RustSource {
                     module,
@@ -146,7 +154,7 @@ impl MigrationSource {
                     content,
                 };
                 Self::Rs(rust_source)
-            }
+            },
         };
 
         Ok(this)
@@ -208,7 +216,7 @@ impl Validator {
                     }
                 }
                 Ok(())
-            }
+            },
             _ => Ok(()),
         }
     }
@@ -222,7 +230,7 @@ impl Validator {
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub enum SourceError {
+pub(crate) enum SourceError {
     Directory(String),
     Path(String, String),
     Name(String),
@@ -238,7 +246,7 @@ impl From<Version> for SourceError {
     }
 }
 
-pub struct Version {
+pub(crate) struct Version {
     message: String,
     offending_versions: Vec<i64>,
 }
@@ -266,7 +274,7 @@ enum SourceType {
 }
 
 impl SourceType {
-    pub fn from_ext(ext: &str) -> Result<Self, SourceError> {
+    pub(crate) fn from_ext(ext: &str) -> Result<Self, SourceError> {
         match ext {
             "sql" => Ok(Self::Sql),
             "rs" => Ok(Self::Rust),
@@ -282,10 +290,8 @@ mod tests {
     use super::{SourceError, Validator, Version};
 
     fn to_validator(vs: Vec<i64>) -> Validator {
-        let ids = vs
-            .into_iter()
-            .map(|v| (v, v.to_string()))
-            .collect::<Vec<_>>();
+        let ids =
+            vs.into_iter().map(|v| (v, v.to_string())).collect::<Vec<_>>();
         Validator::new(ids)
     }
 

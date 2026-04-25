@@ -1,6 +1,6 @@
 [package]
-name = "tern-core"
-description = "Core interfaces and types for `tern` migration tooling."
+name = "tern-executor"
+description = "Implementations for `tern` for foreign types."
 version.workspace = true
 license.workspace = true
 edition.workspace = true
@@ -8,18 +8,23 @@ authors.workspace = true
 repository.workspace = true
 
 [lib]
-name = "tern_core"
+name = "tern_executor"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
+all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-sqlx = ["dep:sqlx", "sqlx/chrono"]
+default = []
+
+sqlx = ["dep:sqlx", "sqlx/chrono", "tern-core/sqlx"]
+sqlx_postgres = ["sqlx", "sqlx/postgres"]
+sqlx_mysql = ["sqlx", "sqlx/mysql"]
+sqlx_sqlite = ["sqlx", "sqlx/sqlite"]
 
 [dependencies]
 chrono = { workspace = true }
 futures-core = { workspace = true }
-log = { workspace = true }
-thiserror = { workspace = true }
 sqlx = { workspace = true, default-features = false, optional = true }
+tern-core = { workspace = true }

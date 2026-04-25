@@ -43,6 +43,11 @@ let
           inherit pname cargoArtifacts;
           cargoExtraArgs = "-p ${pname}";
         };
+
+      tern-cli = mkTernPackage "tern-cli";
+      tern-core = mkTernPackage "tern-core";
+      tern-derive = mkTernPackage "tern-derive";
+      tern-executor = mkTernPackage "tern-executor";
     in
     {
       checks = {
@@ -53,13 +58,18 @@ let
       };
 
       packages = {
-        inherit rust-stable tern;
-        default = tern;
+        inherit
+          rust-stable
+          tern
+          tern-cli
+          tern-core
+          tern-derive
+          tern-executor
+          ;
 
+        default = tern;
         tern-deps = cargoArtifacts;
-        tern-cli = mkTernPackage "tern-cli";
-        tern-core = mkTernPackage "tern-core";
-        tern-derive = mkTernPackage "tern-derive";
+
       };
     };
 in

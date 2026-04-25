@@ -3,4 +3,3 @@ target/
 .dir-locals.el
 .direnv/
 .envrc
-Makefile.toml
