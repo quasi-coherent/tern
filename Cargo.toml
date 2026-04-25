@@ -1,22 +1,16 @@
 [workspace]
-members = [
-  ".",
-  "tern-core",
-  "tern-cli",
-  "tern-derive",
-]
+members = [".", "tern-core", "tern-cli", "tern-derive"]
 default-members = ["tern-core", "tern-cli", "tern-derive"]
 exclude = []
 
 [workspace.package]
-version = "3.1.5"
+version = "4.0.0"
 license = "MIT OR Apache-2.0"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/quasi-coherent/tern"
-keywords = ["embedded", "database", "migrations", "postgres", "mysql", "sqlite"]
+keywords = ["database", "migrations", "postgres", "mysql", "sqlite"]
 categories = ["database"]
 authors = ["Daniel Donohue <d.michael.donohue@gmail.com>"]
-rust-version = "1.85.1"
 
 [package]
 name = "tern"
@@ -35,29 +29,37 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 cli = ["tern-cli"]
 
-sqlx_postgres = ["tern-core/sqlx_postgres"]
-sqlx_mysql = ["tern-core/sqlx_mysql"]
-sqlx_sqlite = ["tern-core/sqlx_sqlite"]
-
-[workspace.dependencies]
-tern = { version = "=3.1.5", path = "." }
-tern-core = { version = "=3.1.5", path = "tern-core" }
-tern-cli = { version = "=3.1.5", path = "tern-cli" }
-tern-derive = { version = "=3.1.5", path = "tern-derive" }
-
-log = "0.4.29"
-regex = "1.12.3"
-sqlx = { version = "0.8.6", default-features = false }
+_sqlx = []
+sqlx_mysql = ["_sqlx", "tern-core/sqlx_mysql"]
+sqlx_postgres = ["_sqlx", "tern-core/sqlx_postgres"]
+sqlx_sqlite = ["_sqlx", "tern-core/sqlx_sqlite"]
 
 [dependencies]
 tern-core = { workspace = true }
 tern-cli = { workspace = true, optional = true }
 tern-derive = { workspace = true }
 
+[workspace.dependencies]
+tern = { version = "=4.0.0", path = "." }
+tern-core = { version = "=4.0.0", path = "tern-core" }
+tern-cli = { version = "=4.0.0", path = "tern-cli" }
+tern-derive = { version = "=4.0.0", path = "tern-derive" }
+
+chrono = "0.4.44"
+futures-core = "0.3.31"
+log = "0.4.29"
+regex = "1.12.3"
+thiserror = "2.0.18"
+
+[workspace.dependencies.sqlx]
+version = "0.8.6"
+default-features = false
+features = ["chrono", "derive"]
+
 [dev-dependencies]
 anyhow = "1.0"
 env_logger = "0.11.10"
-tokio = { version = "1.0", default-features = false }
+tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [[example]]
 name = "simple"

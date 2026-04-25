@@ -1,409 +1,196 @@
-//! This module contains types and traits related to the migration files.
-//!
-//! * [`Migration`] is the abstract representation of what is built from a
-//!   migration file.
-//! * [`QueryBuilder`] is the recipe for building the query for a migration.
-//! * [`MigrationSource`] is the ability to produce the set of migrations, a
-//!   [`MigrationSet`], for a particular context in order to be ran in that
-//!   context.
-//! * [`MigrationContext`] is the core type.  It has an associated [`Executor`]
-//!   and it can produce the migrations from source.  Combined, it has the full
-//!   functionality of the migration tool.
-//!
-//! Generally these shouldn't be implemented; use the corresponding derive macro
-//! instead.
-use crate::error::{DatabaseError as _, TernResult};
-
 use chrono::{DateTime, Utc};
-use futures_core::{Future, future::BoxFuture};
-use std::time::Instant;
+use futures_core::future::BoxFuture;
+use std::fmt::{self, Display, Formatter};
 
-pub use crate::query::Query;
+use crate::context::MigrationContext;
+use crate::error::TernResult;
+use crate::query::Query;
 
-/// The context in which a migration run occurs.
-pub trait MigrationContext
-where
-    Self: MigrationSource<Ctx = Self> + Send + Sync + 'static,
-{
-    /// The name of the table in the database that tracks the history of this
-    /// migration set.
-    ///
-    /// It defaults to `_tern_migrations` in the default schema for the
-    /// database driver if using the derive macro for this trait.
-    const HISTORY_TABLE: &str;
-
-    /// The type for executing queries in a migration run.
-    type Exec: Executor;
-
-    /// A reference to the underlying `Executor`.
-    fn executor(&mut self) -> &mut Self::Exec;
-
-    /// For a migration that is capable of building its query in this migration
-    /// context, this builds the query, applies the migration, then updates the
-    /// schema history table after.
-    fn apply<'migration, 'conn: 'migration, M>(
-        &'conn mut self,
-        migration: &'migration M,
-    ) -> BoxFuture<'migration, TernResult<AppliedMigration>>
-    where
-        M: Migration<Ctx = Self> + Send + Sync + ?Sized,
-    {
-        Box::pin(async move {
-            let start = Instant::now();
-            let query = M::build(migration, self).await?;
-            let executor = self.executor();
-
-            if migration.no_tx() {
-                executor
-                    .apply_no_tx(&query)
-                    .await
-                    .void_tern_migration_result(migration)?;
-            } else {
-                executor
-                    .apply_tx(&query)
-                    .await
-                    .void_tern_migration_result(migration)?;
-            }
-
-            let applied_at = Utc::now();
-            let duration_ms = start.elapsed().as_millis() as i64;
-            let applied =
-                migration.to_applied(duration_ms, applied_at, query.sql());
-            executor
-                .insert_applied_migration(Self::HISTORY_TABLE, &applied)
-                .await?;
-
-            Ok(applied)
-        })
-    }
-
-    /// Gets the version of the most recently applied migration.
-    fn latest_version(&mut self) -> BoxFuture<'_, TernResult<Option<i64>>> {
-        Box::pin(async move {
-            let latest = self
-                .executor()
-                .get_all_applied(Self::HISTORY_TABLE)
-                .await?
-                .into_iter()
-                .fold(None, |acc, m| match acc {
-                    None => Some(m.version),
-                    Some(v) if m.version > v => Some(m.version),
-                    _ => acc,
-                });
-
-            Ok(latest)
-        })
-    }
-
-    /// Get all previously applied migrations.
-    fn previously_applied(
-        &mut self,
-    ) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
-        Box::pin(self.executor().get_all_applied(Self::HISTORY_TABLE))
-    }
-
-    /// Check that the history table exists and create it if not.
-    fn check_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
-        Box::pin(
-            self.executor().create_history_if_not_exists(Self::HISTORY_TABLE),
-        )
-    }
-
-    /// Drop the history table if requested.
-    fn drop_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
-        Box::pin(self.executor().drop_history(Self::HISTORY_TABLE))
-    }
-
-    /// Insert an applied migration.
-    fn insert_applied<'migration, 'conn: 'migration>(
-        &'conn mut self,
-        applied: &'migration AppliedMigration,
-    ) -> BoxFuture<'migration, TernResult<()>> {
-        Box::pin(
-            self.executor()
-                .insert_applied_migration(Self::HISTORY_TABLE, applied),
-        )
-    }
-
-    /// Upsert applied migrations.
-    fn upsert_applied<'migration, 'conn: 'migration>(
-        &'conn mut self,
-        applied: &'migration AppliedMigration,
-    ) -> BoxFuture<'migration, TernResult<()>> {
-        Box::pin(
-            self.executor()
-                .upsert_applied_migration(Self::HISTORY_TABLE, applied),
-        )
-    }
-}
-
-/// The "executor" type for the database backend ultimately responsible for
-/// issuing migration and schema history queries.
-pub trait Executor
-where
-    Self: Send + Sync + 'static,
-{
-    /// The type of value that can produce queries for the history table of this
-    /// migration set.
-    type Queries: QueryRepository;
-
-    /// Apply the `Query` for the migration in a transaction.
-    fn apply_tx(
-        &mut self,
-        query: &Query,
-    ) -> impl Future<Output = TernResult<()>> + Send;
-
-    /// Apply the `Query` for the migration _not_ in a transaction.
-    fn apply_no_tx(
-        &mut self,
-        query: &Query,
-    ) -> impl Future<Output = TernResult<()>> + Send;
-
-    /// `CREATE IF NOT EXISTS` the history table.
-    fn create_history_if_not_exists(
-        &mut self,
-        history_table: &str,
-    ) -> impl Future<Output = TernResult<()>> + Send;
-
-    /// `DROP` the history table.
-    fn drop_history(
-        &mut self,
-        history_table: &str,
-    ) -> impl Future<Output = TernResult<()>> + Send;
-
-    /// Get the complete history of applied migrations.
-    fn get_all_applied(
-        &mut self,
-        history_table: &str,
-    ) -> impl Future<Output = TernResult<Vec<AppliedMigration>>> + Send;
-
-    /// Insert an applied migration into the history table.
-    fn insert_applied_migration(
-        &mut self,
-        history_table: &str,
-        applied: &AppliedMigration,
-    ) -> impl Future<Output = TernResult<()>> + Send;
-
-    /// Update or insert an applied migration.
-    fn upsert_applied_migration(
-        &mut self,
-        history_table: &str,
-        applied: &AppliedMigration,
-    ) -> impl Future<Output = TernResult<()>> + Send;
-}
-
-/// A type that has a library of "administrative" queries that are needed during
-/// a migration run.
-pub trait QueryRepository {
-    /// The query that creates the schema history table or does nothing if it
-    /// already exists.
-    fn create_history_if_not_exists_query(history_table: &str) -> Query;
-
-    /// The query that drops the history table if requested.
-    fn drop_history_query(history_table: &str) -> Query;
-
-    /// The query to update the schema history table with an applied migration.
-    fn insert_into_history_query(
-        history_table: &str,
-        applied: &AppliedMigration,
-    ) -> Query;
-
-    /// The query to return all rows from the schema history table.
-    fn select_star_from_history_query(history_table: &str) -> Query;
-
-    /// Query to insert or update a record in the history table.
-    fn upsert_history_query(
-        history_table: &str,
-        applied: &AppliedMigration,
-    ) -> Query;
-}
-
-/// A single migration in a migration set.
-pub trait Migration
-where
-    Self: Send + Sync,
-{
-    /// A migration context that is sufficient to build this migration.
+/// One migration within a migration set.
+///
+/// A `Migration` provides required metadata, the context it needs to be applied,
+/// and how to apply it given its context.
+pub trait Migration: Send + Sync {
     type Ctx: MigrationContext;
 
-    /// Get the `MigrationId` for this migration.
-    fn migration_id(&self) -> MigrationId;
+    /// Return a reference to the [`MigrationId`] of this migration.
+    fn id(&self) -> &MigrationId;
 
-    /// The raw file content of the migration source file, or when stored as an
-    /// applied migration in the history table, it is the query that was ran.
-    fn content(&self) -> String;
-
-    /// Whether this migration should not be applied in a database transaction.
-    fn no_tx(&self) -> bool;
-
-    /// Produce a future resolving to the migration query when `await`ed.
-    fn build<'a>(
+    /// Resolve the [`Query`] that defines this migration.
+    fn resolve_query<'a>(
         &'a self,
-        ctx: &'a mut Self::Ctx,
+        ctx: &mut Self::Ctx,
     ) -> BoxFuture<'a, TernResult<Query>>;
-
-    /// The migration version.
-    fn version(&self) -> i64 {
-        self.migration_id().version()
-    }
-
-    /// Convert this migration to an [`AppliedMigration`] assuming that it was
-    /// successfully applied.
-    fn to_applied(
-        &self,
-        duration_ms: i64,
-        applied_at: DateTime<Utc>,
-        content: &str,
-    ) -> AppliedMigration {
-        AppliedMigration::new(
-            self.migration_id(),
-            content,
-            duration_ms,
-            applied_at,
-        )
-    }
 }
 
-/// A type that is used to collect a [`MigrationSet`] -- migrations that are not
-/// applied yet -- which is used as the input to runner commands.
-pub trait MigrationSource {
-    /// A context that the set of migrations returned by `migration_set` would
-    /// need in order to be applied.
-    type Ctx: MigrationContext;
+/// A dynamically-typed `Migration` for use when a value cannot be statically
+/// typed.
+pub struct MigrationBox<Ctx: ?Sized>(
+    Box<dyn Migration<Ctx = Ctx> + Send + Sync>,
+);
 
-    /// The set of migrations since `last_applied`.
-    fn migration_set(
-        &self,
-        last_applied: Option<i64>,
-    ) -> MigrationSet<Self::Ctx>;
-}
-
-/// The `Migration`s derived from the files in the source directory that need to
-/// be applied.
-pub struct MigrationSet<Ctx: ?Sized> {
-    pub migrations: Vec<Box<dyn Migration<Ctx = Ctx>>>,
-}
-
-impl<Ctx> MigrationSet<Ctx>
-where
-    Ctx: MigrationContext,
-{
-    pub fn new<T>(vs: T) -> MigrationSet<Ctx>
+impl<Ctx: MigrationContext> MigrationBox<Ctx> {
+    /// Wrap the migration `M` in a box.
+    pub fn new<M>(mig: M) -> Self
     where
-        T: Into<Vec<Box<dyn Migration<Ctx = Ctx>>>>,
+        M: Migration<Ctx = Ctx> + Send + Sync + 'static,
+    {
+        Self(Box::new(mig))
+    }
+}
+
+impl<Ctx: MigrationContext> Migration for MigrationBox<Ctx> {
+    type Ctx = Ctx;
+
+    fn id(&self) -> &MigrationId {
+        self.0.id()
+    }
+
+    fn resolve_query<'a>(
+        &'a self,
+        ctx: &mut Self::Ctx,
+    ) -> BoxFuture<'a, TernResult<Query>> {
+        self.0.resolve_query(ctx)
+    }
+}
+
+/// `MigrationSet` is an ordered collection of migrations.
+pub struct MigrationSet<Ctx: ?Sized> {
+    migrations: Vec<MigrationBox<Ctx>>,
+}
+
+impl<Ctx: MigrationContext> MigrationSet<Ctx> {
+    /// Create a new `MigrationSet`.
+    ///
+    /// This sorts the input by version in ascending order, so inputs need not
+    /// be pre-sorted.
+    pub fn new<T>(vs: T) -> Self
+    where
+        T: Into<Vec<MigrationBox<Ctx>>>,
     {
         let mut migrations = vs.into();
-        migrations.sort_by_key(|m| m.version());
-        MigrationSet { migrations }
+        migrations.sort_by_key(|m| m.id().version());
+        Self { migrations }
     }
 
-    /// Number of migrations in the set.
-    pub fn len(&self) -> usize {
+    /// Returns the number of migrations in this migration set.
+    pub fn size(&self) -> usize {
         self.migrations.len()
     }
 
-    /// Versions present in this migration set.
+    /// Returns the versions contained in this migration set.
     pub fn versions(&self) -> Vec<i64> {
-        self.migrations.iter().map(|m| m.version()).collect::<Vec<_>>()
+        self.migrations.iter().map(|m| m.id().version()).collect()
     }
 
-    /// The version/name of migrations in this migration set.
-    pub fn migration_ids(&self) -> Vec<MigrationId> {
-        self.migrations.iter().map(|m| m.migration_id()).collect::<Vec<_>>()
+    /// Return the latest version in this set.
+    ///
+    /// This is `None` when the set is empty.
+    pub fn latest(&self) -> Option<i64> {
+        self.versions().last().cloned()
     }
 
-    /// The latest version in the set.
-    pub fn max(&self) -> Option<i64> {
-        self.versions().iter().max().copied()
-    }
-
-    /// The set is empty for the requested operation.
+    /// Returns whether this migration set is empty.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.size() == 0
+    }
+
+    /// Return the ordered set of migrations in a slice.
+    pub fn as_slice(&self) -> &[MigrationBox<Ctx>] {
+        self.migrations.as_slice()
     }
 }
 
-/// A helper trait for [`Migration`].
-///
-/// With the derive macros, the user's responsibility is to implement this for
-/// a Rust migration, and the proc macro uses it to build an implementation of
-/// [`Migration`].
-pub trait QueryBuilder {
-    /// The context for running the migration this query is for.
-    type Ctx: MigrationContext;
-
-    /// Asynchronously produce the migration query.
-    fn build(
-        &self,
-        ctx: &mut Self::Ctx,
-    ) -> impl Future<Output = TernResult<Query>> + Send;
-}
-
-/// Name/version derived from the migration source filename.
-#[derive(Debug, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+/// Identifier for a migration in a migration set.
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct MigrationId {
-    /// Version parsed from the migration filename.
     version: i64,
-    /// Description parsed from the migration filename.
     description: String,
 }
 
 impl MigrationId {
+    /// New `MigrationId` from values in the filename.
     pub fn new(version: i64, description: String) -> Self {
         Self { version, description }
     }
 
+    /// Get the migration version.
     pub fn version(&self) -> i64 {
         self.version
     }
 
-    pub fn description(&self) -> String {
-        self.description.clone()
+    /// Get the migration description.
+    pub fn description(&self) -> &str {
+        &self.description
     }
 }
 
-impl std::fmt::Display for MigrationId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "V{}__{}", self.version, self.description)
+impl Display for MigrationId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "V{}__{}", self.version(), self.description())
     }
 }
 
-impl From<AppliedMigration> for MigrationId {
-    fn from(value: AppliedMigration) -> Self {
-        Self { version: value.version, description: value.description }
-    }
-}
-
-/// An `AppliedMigration` is the information about a migration that completed
-/// successfully and it is also a row in the schema history table.
-#[derive(Debug, Clone)]
+/// A migration that has been applied to the database.
+///
+/// This is also the Rust value corresponding to a record in the migration
+/// history table.
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct AppliedMigration {
-    /// The migration version.
-    pub version: i64,
-    /// The description of the migration.
-    pub description: String,
-    /// The contents of the migration file at the time it was applied.
-    pub content: String,
-    /// How long the migration took to run in milliseconds.
-    pub duration_ms: i64,
-    /// The timestamp of when the migration was applied.
-    pub applied_at: DateTime<Utc>,
+    version: i64,
+    description: String,
+    content: String,
+    duration_ms: i64,
+    applied_at: DateTime<Utc>,
 }
 
 impl AppliedMigration {
+    /// New `AppliedMigration`.
     pub fn new(
-        id: MigrationId,
-        content: &str,
-        duration_ms: i64,
-        applied_at: DateTime<Utc>,
+        id: &MigrationId,
+        content: String,
+        start: DateTime<Utc>,
     ) -> Self {
+        let applied_at = Utc::now();
+        let duration_ms = (applied_at - start).num_milliseconds();
         Self {
-            version: id.version,
-            description: id.description,
-            content: content.into(),
+            version: id.version(),
+            description: id.description().into(),
+            content,
             duration_ms,
             applied_at,
         }
+    }
+
+    /// Returns the [`MigrationId`] of the migration that was applied.
+    pub fn migration_id(&self) -> MigrationId {
+        MigrationId::new(self.version, self.description.clone())
+    }
+
+    /// Returns the migration version obtained from the source filename.
+    pub fn version(&self) -> i64 {
+        self.version
+    }
+
+    /// Returns the description of the migration obtained from the source
+    /// filename.
+    pub fn description(&self) -> String {
+        self.description.clone()
+    }
+
+    /// Returns the raw content of the original migration source.
+    pub fn content(&self) -> String {
+        self.content.clone()
+    }
+
+    /// Returns the duration in milliseconds of the migration query run.
+    pub fn duration_millis(&self) -> i64 {
+        self.duration_ms
+    }
+
+    /// Returns the UTC timestamp of when the migration was applied.
+    pub fn applied_at(&self) -> DateTime<Utc> {
+        self.applied_at
     }
 }
