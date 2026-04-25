@@ -1,22 +1,18 @@
 [workspace]
-members = [
-  ".",
-  "tern-core",
-  "tern-cli",
-  "tern-derive",
-]
-default-members = ["tern-core", "tern-cli", "tern-derive"]
-exclude = []
+members = [".", "crates/*"]
+default-members = ["."]
 
 [workspace.package]
-version = "3.1.5"
+version = "4.0.0-rc1"
 license = "MIT OR Apache-2.0"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/quasi-coherent/tern"
-keywords = ["embedded", "database", "migrations", "postgres", "mysql", "sqlite"]
-categories = ["database"]
 authors = ["Daniel Donohue <d.michael.donohue@gmail.com>"]
-rust-version = "1.85.1"
+keywords = ["database", "migrations", "postgres", "mysql", "sqlite"]
+categories = ["database"]
+
+[workspace.metadata.crane]
+name = "tern"
 
 [package]
 name = "tern"
@@ -28,41 +24,81 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[lib]
+name = "tern"
+path = "src/lib.rs"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-cli = ["tern-cli"]
+default = []
 
-sqlx_postgres = ["tern-core/sqlx_postgres"]
-sqlx_mysql = ["tern-core/sqlx_mysql"]
-sqlx_sqlite = ["tern-core/sqlx_sqlite"]
+cli = ["dep:clap", "tern-cli"]
 
-[workspace.dependencies]
-tern = { version = "=3.1.5", path = "." }
-tern-core = { version = "=3.1.5", path = "tern-core" }
-tern-cli = { version = "=3.1.5", path = "tern-cli" }
-tern-derive = { version = "=3.1.5", path = "tern-derive" }
-
-log = "0.4.29"
-regex = "1.12.3"
-sqlx = { version = "0.8.6", default-features = false }
+sqlx_mysql = ["_sqlx", "tern-executor/sqlx_mysql"]
+sqlx_postgres = ["_sqlx", "tern-executor/sqlx_postgres"]
+sqlx_sqlite = ["_sqlx", "tern-executor/sqlx_sqlite"]
+_sqlx = ["dep:sqlx", "tern-core/sqlx"]
 
 [dependencies]
-tern-core = { workspace = true }
 tern-cli = { workspace = true, optional = true }
+tern-core = { workspace = true }
 tern-derive = { workspace = true }
+tern-executor = { workspace = true }
+
+chrono = { workspace = true }
+clap = { workspace = true, optional = true }
+console = { workspace = true }
+futures-core = { workspace = true }
+log = { workspace = true, features = ["kv"] }
+sqlx = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+[workspace.dependencies]
+chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.1", features = ["derive"] }
+console = "0.16.3"
+futures-core = "0.3.32"
+log = "0.4.29"
+regex = "1.12.3"
+thiserror = "2.0"
+
+tern-cli = { version = "=4.0.0-rc1", path = "crates/tern-cli" }
+tern-core = { version = "=4.0.0-rc1", path = "crates/tern-core" }
+tern-derive = { version = "=4.0.0-rc1", path = "crates/tern-derive" }
+tern-executor = { version = "=4.0.0-rc1", path = "crates/tern-executor" }
+
+[workspace.dependencies.sqlx]
+default-features = false
+features = ["chrono", "macros"]
+version = "0.8.6"
+
+[workspace.dependencies.tokio]
+default-features = false
+features = ["macros", "rt", "rt-multi-thread"]
+version = "1.0"
 
 [dev-dependencies]
-anyhow = "1.0"
-env_logger = "0.11.10"
-tokio = { version = "1.0", default-features = false }
+simplelog = "0.12.2"
+sqlx = { workspace = true, features = ["runtime-tokio"] }
+tern = { path = ".", features = ["cli"] }
+thiserror = { workspace = true }
+
+[dev-dependencies.tokio]
+version = "1.0"
+default-features = false
+features = ["macros", "rt", "rt-multi-thread"]
 
 [[example]]
 name = "simple"
 required-features = ["cli", "sqlx_postgres"]
 
 [[example]]
-name = "dynamic-query"
+name = "partition"
 required-features = ["cli", "sqlx_postgres"]
+
+[[test]]
+name = "derive"
+required-features = ["sqlx_postgres"]

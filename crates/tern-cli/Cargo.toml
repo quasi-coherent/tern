@@ -1,0 +1,13 @@
+[package]
+name = "tern-cli"
+description = "A helper CLI for `tern` applications."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive", "env"] }
+tern-core = { workspace = true }
+tern-executor = { workspace = true }

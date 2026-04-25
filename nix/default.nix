@@ -1,44 +1,19 @@
 { inputs, ... }:
 {
   imports = [
-    inputs.treefmt-nix.flakeModule
-    inputs.actions-nix.flakeModules.default
-
-    ./ci
-    ./crate.nix
-    ./lib.nix
-    ./shells.nix
+    inputs.flake-parts.flakeModules.partitions
+    ./flake-parts.nix
   ];
 
-  perSystem =
-    {
-      lib,
-      pkgs,
-      self',
-      ...
-    }:
-    {
-      apps.default = {
-        meta = "Format project source";
-        program = pkgs.writeShellApplication {
-          name = "fmtt";
-          text = ''${lib.getExe self'.formatter} "$@"'';
-        };
-      };
-
-      treefmt = {
-        projectRootFile = "flake.nix";
-        programs = {
-          rustfmt.enable = true;
-          nixfmt.enable = true;
-          typos.enable = true;
-        };
-        settings.formatter.rustfmt = {
-          options = [
-            "--config-path"
-            "rustfmt.toml"
-          ];
-        };
-      };
-    };
+  partitionedAttrs.apps = "dev";
+  partitionedAttrs.checks = "dev";
+  partitionedAttrs.devShells = "dev";
+  partitionedAttrs.formatter = "dev";
+  partitions.dev.extraInputsFlake = ../dev;
+  partitions.dev.module = { inputs, ... }: {
+    imports = [
+      inputs.treefmt-nix.flakeModule
+      ./dev
+    ];
+  };
 }

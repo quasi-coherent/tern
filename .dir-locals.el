@@ -1,0 +1,5 @@
+((nil . ((indent-tabs-mode . nil)
+         (tab-width . 4)))
+ (lsp-rust . ((lsp-rust-all-features . t)
+              (lsp-rust-all-targets . t)))
+ (lsp-nix . (lsp-nix-nixd-formatting-command ["fmtt"])))
