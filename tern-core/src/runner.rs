@@ -6,7 +6,9 @@
 //! Each method also exists as a (sub)command of the `App`, available with the
 //! feature flag "cli" enabled.
 use crate::error::{DatabaseError as _, Error, TernResult};
-use crate::migration::{AppliedMigration, Migration, MigrationContext, MigrationId};
+use crate::migration::{
+    AppliedMigration, Migration, MigrationContext, MigrationId,
+};
 
 use chrono::{DateTime, Utc};
 use display_json::{DebugAsJson, DisplayAsJsonPretty};
@@ -69,9 +71,11 @@ where
         };
         if let Some(target) = target_version {
             match last_applied {
-                Some(applied) if target < applied => Err(Error::Invalid(format!(
-                    "target version V{target} earlier than latest applied version V{applied}",
-                )))?,
+                Some(applied) if target < applied => {
+                    Err(Error::Invalid(format!(
+                        "target version V{target} earlier than latest applied version V{applied}",
+                    )))?
+                },
                 _ if target > source => Err(Error::Invalid(format!(
                     "target version V{target} does not exist, latest version found was V{source}",
                 )))?,
@@ -120,7 +124,12 @@ where
                     .await
                     .tern_migration_result(migration.as_ref())
                     .with_report(&results)
-                    .map(|v| MigrationResult::from_applied(&v, Some(migration.no_tx())))?
+                    .map(|v| {
+                        MigrationResult::from_applied(
+                            &v,
+                            Some(migration.no_tx()),
+                        )
+                    })?
             };
 
             results.push(result);
@@ -156,7 +165,10 @@ where
         Ok(report)
     }
 
-    #[deprecated(since = "3.1.0", note = "no valid use case for `start_version`")]
+    #[deprecated(
+        since = "3.1.0",
+        note = "no valid use case for `start_version`"
+    )]
     pub async fn soft_apply(
         &mut self,
         start_version: Option<i64>,
@@ -268,7 +280,10 @@ pub struct MigrationResult {
 }
 
 impl MigrationResult {
-    pub(crate) fn from_applied(applied: &AppliedMigration, no_tx: Option<bool>) -> Self {
+    pub(crate) fn from_applied(
+        applied: &AppliedMigration,
+        no_tx: Option<bool>,
+    ) -> Self {
         Self {
             dryrun: false,
             version: applied.version,
@@ -276,14 +291,17 @@ impl MigrationResult {
             applied_at: Some(applied.applied_at),
             description: applied.description.clone(),
             content: applied.content.clone(),
-            transactional: no_tx
-                .map(Transactional::from_boolean)
-                .unwrap_or(Transactional::Other("Previously applied".to_string())),
+            transactional: no_tx.map(Transactional::from_boolean).unwrap_or(
+                Transactional::Other("Previously applied".to_string()),
+            ),
             duration_ms: RunDuration::Duration(applied.duration_ms),
         }
     }
 
-    pub(crate) fn from_soft_applied(applied: &AppliedMigration, dryrun: bool) -> Self {
+    pub(crate) fn from_soft_applied(
+        applied: &AppliedMigration,
+        dryrun: bool,
+    ) -> Self {
         Self {
             dryrun,
             version: applied.version,
@@ -376,7 +394,8 @@ fn check_migrations_in_sync(
     applied: HashSet<MigrationId>,
     source: HashSet<MigrationId>,
 ) -> TernResult<()> {
-    let source_not_found: Vec<&MigrationId> = applied.difference(&source).collect();
+    let source_not_found: Vec<&MigrationId> =
+        applied.difference(&source).collect();
 
     if !source_not_found.is_empty() {
         return Err(Error::OutOfSync {
@@ -415,7 +434,9 @@ mod tests {
         let result = super::check_migrations_in_sync(applied, source);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == missing));
+        assert!(
+            matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == missing)
+        );
     }
 
     #[test]
@@ -439,7 +460,9 @@ mod tests {
         let result = super::check_migrations_in_sync(applied, source);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == missing));
+        assert!(
+            matches!(err, Error::OutOfSync { at_issue, .. } if *at_issue == missing)
+        );
     }
 
     #[test]

@@ -28,7 +28,8 @@ pub fn new(
     buf.push(filename);
 
     println!("Creating {}", console::style(buf.display()).cyan());
-    let mut file = File::create(&buf).context("Failed to create migration file")?;
+    let mut file =
+        File::create(&buf).context("Failed to create migration file")?;
     std::io::Write::write_all(
         &mut file,
         migration_template(no_tx, migration_type).as_bytes(),
@@ -54,9 +55,9 @@ fn get_latest_version(source: &Path) -> anyhow::Result<u16> {
                 .file_name()
                 .into_string()
                 .map_err(|_| anyhow::anyhow!("converting filename to str"))?;
-            let captures = filename_re()
-                .captures(&filename)
-                .ok_or(anyhow::anyhow!("{filename} does not match expected format"))?;
+            let captures = filename_re().captures(&filename).ok_or(
+                anyhow::anyhow!("{filename} does not match expected format"),
+            )?;
             let version = captures
                 .get(1)
                 .ok_or(anyhow::anyhow!("{filename} missing version"))?
@@ -90,7 +91,7 @@ fn migration_template(no_tx: bool, ty: MigrationType) -> String {
             content += r#"
 -- Add the SQL query for the migration below.
 "#;
-        }
+        },
         MigrationType::Rust => {
             let derive = if no_tx {
                 "
@@ -121,7 +122,7 @@ impl QueryBuilder for TernMigration {{
 }}
 "#
             )
-        }
+        },
     }
 
     content

@@ -12,11 +12,16 @@
 //!
 //! Generally these shouldn't be implemented; use the corresponding derive macro
 //! instead.
-use crate::error::{DatabaseError as _, TernResult};
+use crate::error::{DatabaseError as _, Error, TernResult};
 
 use chrono::{DateTime, Utc};
 use futures_core::{Future, future::BoxFuture};
-use std::{fmt::Write, time::Instant};
+use regex::Regex;
+use sql_splitter::parser::{Parser, SqlDialect};
+use std::fmt::Write;
+use std::io::Error as IoError;
+use std::sync::OnceLock;
+use std::time::Instant;
 
 /// The context in which a migration run occurs.
 pub trait MigrationContext
@@ -65,7 +70,8 @@ where
 
             let applied_at = Utc::now();
             let duration_ms = start.elapsed().as_millis() as i64;
-            let applied = migration.to_applied(duration_ms, applied_at, query.sql());
+            let applied =
+                migration.to_applied(duration_ms, applied_at, query.sql());
             executor
                 .insert_applied_migration(Self::HISTORY_TABLE, &applied)
                 .await?;
@@ -93,15 +99,16 @@ where
     }
 
     /// Get all previously applied migrations.
-    fn previously_applied(&mut self) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
+    fn previously_applied(
+        &mut self,
+    ) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
         Box::pin(self.executor().get_all_applied(Self::HISTORY_TABLE))
     }
 
     /// Check that the history table exists and create it if not.
     fn check_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
         Box::pin(
-            self.executor()
-                .create_history_if_not_exists(Self::HISTORY_TABLE),
+            self.executor().create_history_if_not_exists(Self::HISTORY_TABLE),
         )
     }
 
@@ -144,10 +151,16 @@ where
     type Queries: QueryRepository;
 
     /// Apply the `Query` for the migration in a transaction.
-    fn apply_tx(&mut self, query: &Query) -> impl Future<Output = TernResult<()>> + Send;
+    fn apply_tx(
+        &mut self,
+        query: &Query,
+    ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// Apply the `Query` for the migration _not_ in a transaction.
-    fn apply_no_tx(&mut self, query: &Query) -> impl Future<Output = TernResult<()>> + Send;
+    fn apply_no_tx(
+        &mut self,
+        query: &Query,
+    ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// `CREATE IF NOT EXISTS` the history table.
     fn create_history_if_not_exists(
@@ -156,7 +169,10 @@ where
     ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// `DROP` the history table.
-    fn drop_history(&mut self, history_table: &str) -> impl Future<Output = TernResult<()>> + Send;
+    fn drop_history(
+        &mut self,
+        history_table: &str,
+    ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// Get the complete history of applied migrations.
     fn get_all_applied(
@@ -190,13 +206,35 @@ pub trait QueryRepository {
     fn drop_history_query(history_table: &str) -> Query;
 
     /// The query to update the schema history table with an applied migration.
-    fn insert_into_history_query(history_table: &str, applied: &AppliedMigration) -> Query;
+    fn insert_into_history_query(
+        history_table: &str,
+        applied: &AppliedMigration,
+    ) -> Query;
 
     /// The query to return all rows from the schema history table.
     fn select_star_from_history_query(history_table: &str) -> Query;
 
     /// Query to insert or update a record in the history table.
-    fn upsert_history_query(history_table: &str, applied: &AppliedMigration) -> Query;
+    fn upsert_history_query(
+        history_table: &str,
+        applied: &AppliedMigration,
+    ) -> Query;
+}
+
+/// A helper trait for [`Migration`].
+///
+/// With the derive macros, the user's responsibility is to implement this for
+/// a Rust migration, and the proc macro uses it to build an implementation of
+/// [`Migration`].
+pub trait QueryBuilder {
+    /// The context for running the migration this query is for.
+    type Ctx: MigrationContext;
+
+    /// Asynchronously produce the migration query.
+    fn build(
+        &self,
+        ctx: &mut Self::Ctx,
+    ) -> impl Future<Output = TernResult<Query>> + Send;
 }
 
 /// A single migration in a migration set.
@@ -218,7 +256,10 @@ where
     fn no_tx(&self) -> bool;
 
     /// Produce a future resolving to the migration query when `await`ed.
-    fn build<'a>(&'a self, ctx: &'a mut Self::Ctx) -> BoxFuture<'a, TernResult<Query>>;
+    fn build<'a>(
+        &'a self,
+        ctx: &'a mut Self::Ctx,
+    ) -> BoxFuture<'a, TernResult<Query>>;
 
     /// The migration version.
     fn version(&self) -> i64 {
@@ -233,7 +274,12 @@ where
         applied_at: DateTime<Utc>,
         content: &str,
     ) -> AppliedMigration {
-        AppliedMigration::new(self.migration_id(), content, duration_ms, applied_at)
+        AppliedMigration::new(
+            self.migration_id(),
+            content,
+            duration_ms,
+            applied_at,
+        )
     }
 }
 
@@ -245,7 +291,10 @@ pub trait MigrationSource {
     type Ctx: MigrationContext;
 
     /// The set of migrations since `last_applied`.
-    fn migration_set(&self, last_applied: Option<i64>) -> MigrationSet<Self::Ctx>;
+    fn migration_set(
+        &self,
+        last_applied: Option<i64>,
+    ) -> MigrationSet<Self::Ctx>;
 }
 
 /// The `Migration`s derived from the files in the source directory that need to
@@ -274,18 +323,12 @@ where
 
     /// Versions present in this migration set.
     pub fn versions(&self) -> Vec<i64> {
-        self.migrations
-            .iter()
-            .map(|m| m.version())
-            .collect::<Vec<_>>()
+        self.migrations.iter().map(|m| m.version()).collect::<Vec<_>>()
     }
 
     /// The version/name of migrations in this migration set.
     pub fn migration_ids(&self) -> Vec<MigrationId> {
-        self.migrations
-            .iter()
-            .map(|m| m.migration_id())
-            .collect::<Vec<_>>()
+        self.migrations.iter().map(|m| m.migration_id()).collect::<Vec<_>>()
     }
 
     /// The latest version in the set.
@@ -296,114 +339,6 @@ where
     /// The set is empty for the requested operation.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-}
-
-/// A helper trait for [`Migration`].
-///
-/// With the derive macros, the user's responsibility is to implement this for
-/// a Rust migration, and the proc macro uses it to build an implementation of
-/// [`Migration`].
-pub trait QueryBuilder {
-    /// The context for running the migration this query is for.
-    type Ctx: MigrationContext;
-
-    /// Asynchronously produce the migration query.
-    fn build(&self, ctx: &mut Self::Ctx) -> impl Future<Output = TernResult<Query>> + Send;
-}
-
-/// A SQL query.
-#[derive(Debug, Clone)]
-pub struct Query(pub(crate) String);
-
-impl Query {
-    pub fn new(sql: String) -> Self {
-        Self(sql)
-    }
-
-    fn sanitize(&self) -> String {
-        use regex::Regex;
-        let block_comment = Regex::new(r"\/\*(?s).*?(?-s)\*\/").unwrap();
-        let sql = self
-            .sql()
-            .trim()
-            .lines()
-            .filter(|line| {
-                let line = line.trim();
-                !line.starts_with("--") || line.is_empty()
-            })
-            .map(|line| {
-                // Remove trailing comments: "SELECT a -- like this"
-                let mut stripped = line.to_string();
-                let offset = stripped.find("--").unwrap_or(stripped.len());
-                stripped.replace_range(offset.., "");
-                stripped.trim_end().to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        let stripped = block_comment.replace_all(&sql, "");
-
-        if !stripped.ends_with(";") {
-            format!("{stripped};")
-        } else {
-            stripped.to_string()
-        }
-    }
-
-    pub fn sql(&self) -> &str {
-        &self.0
-    }
-
-    /// Add another query to the end of this one.
-    pub fn append(&mut self, other: Self) -> TernResult<()> {
-        let mut buf = String::new();
-        writeln!(buf, "{}", self.0)?;
-        writeln!(buf, "{}", other.0)?;
-        self.0 = buf;
-        Ok(())
-    }
-
-    /// Split a query comprised of multiple statements.
-    ///
-    /// For queries having `no_tx = true`, a migration comprised of multiple,
-    /// separate SQL statements needs to be broken up so that the statements can
-    /// run sequentially.  Otherwise, many backends will run the collection of
-    /// statements in a transaction automatically, which breaches the `no_tx`
-    /// contract.
-    ///
-    /// _Warning_: This is sensitive to the particular character sequence for
-    /// writing comments.  Only `--` and C-style `/* ... */` are treated
-    /// correctly because this is valid comment syntax in any of the supported
-    /// backends.  A line starting with `#`, for instance, will not be treated as
-    /// a comment, and so only in MySQL where that does denote a comment, the
-    /// function may not separate multiple statements correctly, possibly leading
-    /// to syntax errors during query execution.
-    pub fn split_statements(&self) -> TernResult<Vec<String>> {
-        let mut statements = Vec::new();
-        self.sanitize()
-            .lines()
-            .try_fold(String::new(), |mut buf, line| {
-                if line.trim().is_empty() {
-                    return Ok(buf);
-                }
-                writeln!(buf, "{line}")?;
-                // If the line ends with `;` this is the end of the statement, so
-                // push the accumulated buffer to the vector and start a new one.
-                if line.ends_with(";") {
-                    statements.push(buf);
-                    Ok::<String, std::fmt::Error>(String::new())
-                } else {
-                    Ok(buf)
-                }
-            })?;
-
-        Ok(statements)
-    }
-}
-
-impl std::fmt::Display for Query {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
     }
 }
 
@@ -418,10 +353,7 @@ pub struct MigrationId {
 
 impl MigrationId {
     pub fn new(version: i64, description: String) -> Self {
-        Self {
-            version,
-            description,
-        }
+        Self { version, description }
     }
 
     pub fn version(&self) -> i64 {
@@ -441,10 +373,7 @@ impl std::fmt::Display for MigrationId {
 
 impl From<AppliedMigration> for MigrationId {
     fn from(value: AppliedMigration) -> Self {
-        Self {
-            version: value.version,
-            description: value.description,
-        }
+        Self { version: value.version, description: value.description }
     }
 }
 
@@ -482,78 +411,156 @@ impl AppliedMigration {
     }
 }
 
+fn dialect_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r".*tern:noTransaction,?([a-z]*)").unwrap())
+}
+
+/// A SQL query.
+#[derive(Debug, Clone)]
+pub struct Query(pub(crate) String);
+
+impl Query {
+    /// New `Query` from a string.
+    pub fn new(sql: String) -> Self {
+        Self(sql)
+    }
+
+    /// Return the underlying query text.
+    pub fn sql(&self) -> &str {
+        &self.0
+    }
+
+    /// Add another query to the end of this one.
+    pub fn append(&mut self, other: Self) -> TernResult<()> {
+        let mut buf = String::new();
+        writeln!(buf, "{}", self.0)?;
+        writeln!(buf, "{}", other.0)?;
+        self.0 = buf;
+        Ok(())
+    }
+
+    /// Split a query comprised of multiple statements into a collection of
+    /// the atomic, single statements.
+    ///
+    /// This is necessary to honor the contract of "tern:noTransaction", since
+    /// sending a query with multiple statements is treated as one prepared
+    /// statement and ran in a transaction automatically.
+    pub fn split_statements(&self) -> TernResult<Vec<String>> {
+        let sql = self.0.as_bytes();
+        let dialect = self.detect_dialect().unwrap_or(SqlDialect::Postgres);
+
+        let mut parser = Parser::with_dialect(sql, sql.len(), dialect);
+        let mut stats = Vec::new();
+
+        while let Some(stat_bytes) =
+            parser.read_statement().map_err(Error::split_err(stats.len()))?
+        {
+            let raw = String::from_utf8(stat_bytes)
+                .map_err(IoError::other)
+                .map_err(Error::split_err(stats.len()))?;
+
+            // Drop "queries" that are only whitespace, like a trailing newline
+            // at the end of the file, or newlines between queries.
+            let stat = raw.trim();
+            if !stat.is_empty() {
+                stats.push(stat.to_string());
+            }
+        }
+
+        Ok(stats)
+    }
+
+    fn detect_dialect(&self) -> Option<SqlDialect> {
+        let mut first = self.0.lines().take(1);
+        let l = first.next()?;
+        let re = dialect_re();
+        let caps = re.captures(l)?;
+        Some(match caps.get(1)?.as_str() {
+            "sqlite" => SqlDialect::Sqlite,
+            "mysql" => SqlDialect::MySql,
+            "postgres" => SqlDialect::Postgres,
+            _ => return None,
+        })
+    }
+}
+
+impl std::fmt::Display for Query {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Query;
-
-    const SQL_IN1: &str = "
--- This is a comment.
-SELECT
-  *
-FROM
-  the_schema.the_table
-WHERE
-  everything = 'is_good'
-";
-    const SQL_OUT1: &str = "SELECT
-  *
-FROM
-  the_schema.the_table
-WHERE
-  everything = 'is_good';
-";
-    const SQL_IN2: &str = "
--- tern:noTransaction
-SELECT count(e.*),
-  e.x,
-  e.y -- This is the column called `y`
-FROM /* A comment block can even be like this */ the_table
-  as e
-JOIN another USING (id)
-/*
-This is a multi
-line
-comment
-*/
-WHERE false;
-
-SELECT a
-from x
--- Asdfsdfsdfsdfsdsdf /* Unnecessary comment */
-where false
-
-;
-";
-    const SQL_OUT21: &str = "SELECT count(e.*),
-  e.x,
-  e.y
-FROM  the_table
-  as e
-JOIN another USING (id)
-WHERE false;
-";
-
-    const SQL_OUT22: &str = "SELECT a
-from x
-where false
-;
-";
+    use super::*;
 
     #[test]
-    fn split_one() {
-        let q1 = Query::new(SQL_IN1.to_string());
-        let res1 = q1.split_statements();
-        assert!(res1.is_ok());
-        let split1 = res1.unwrap();
-        assert_eq!(split1, vec![SQL_OUT1.to_string()]);
+    fn detects_dialect() {
+        let x = "-- tern:noTransaction";
+        let y = "-- tern:noTransaction,sqlite";
+        let z = "-- Comment with tern:noTransaction,postgres in the middle";
+        let t = "-- tern:noTransaction,dynamodb";
+        let xx = Query::new(x.into());
+        let yy = Query::new(y.into());
+        let zz = Query::new(z.into());
+        let tt = Query::new(t.into());
+        assert_eq!(xx.detect_dialect(), None);
+        assert_eq!(yy.detect_dialect(), Some(SqlDialect::Sqlite));
+        assert_eq!(zz.detect_dialect(), Some(SqlDialect::Postgres));
+        assert_eq!(tt.detect_dialect(), None);
     }
 
     #[test]
-    fn split_two() {
-        let q2 = Query::new(SQL_IN2.to_string());
-        let res2 = q2.split_statements();
-        assert!(res2.is_ok());
-        let split2 = res2.unwrap();
-        assert_eq!(split2, vec![SQL_OUT21.to_string(), SQL_OUT22.to_string()]);
+    fn handles_single() {
+        const SQL: &str = "
+SELECT
+ blah,
+ whatever, -- this column is way totally
+ region_id,
+ prod_discount_region_start_date_early,
+ prod_discount_region_start_date,
+ prod_discount_region_end_date
+FROM
+ prod_discount_date
+WHERE
+ whatever = 'way;totally' -- Way; very totally
+ AND region_id = 5;
+";
+        let query = Query::new(SQL.into());
+        let res = query.split_statements();
+        assert!(res.is_ok());
+        let mut stats = res.unwrap();
+        assert_eq!(stats.len(), 1);
+        let stat = stats.pop().unwrap();
+        assert_eq!(&stat, SQL.trim());
+    }
+
+    #[test]
+    fn handles_multiple() {
+        const SQL: &str = r#"
+-- tern:noTransaction,postgres
+SELECT
+  column1 AS "asdf;lkh",
+  column2
+FROM
+  the_table as a
+/* Why
+would anyone do this;
+it's absurd
+*/
+JOIN
+  the_other_table as b
+USING (column3);
+
+SELECT * INTO the_table_recent
+FROM the_table
+WHERE
+  column1 != 'string--with--special/*characters*/and--terminator;'
+  AND recent = true;
+"#;
+        let query = Query::new(SQL.into());
+        let res = query.split_statements();
+        assert!(res.is_ok_and(|ss| ss.len() == 2));
     }
 }

@@ -27,20 +27,17 @@ pub enum Error {
     /// Error processing a migration source.
     #[error("could not parse migration query: {0}")]
     Sql(#[from] std::fmt::Error),
+    #[error("error splitting statement {1}: {0}")]
+    Split(std::io::Error, usize),
     /// Local migration source has fewer migrations than the history table.
-    #[error("missing source: {local} migrations found but {history} have been applied: {msg}")]
-    MissingSource {
-        local: i64,
-        history: i64,
-        msg: String,
-    },
+    #[error(
+        "missing source: {local} migrations found but {history} have been applied: {msg}"
+    )]
+    MissingSource { local: i64, history: i64, msg: String },
     /// The source migrations and the history are not synchronized in a way that
     /// is expected.
     #[error("inconsistent source: {msg}: {at_issue:?}")]
-    OutOfSync {
-        at_issue: Vec<MigrationId>,
-        msg: String,
-    },
+    OutOfSync { at_issue: Vec<MigrationId>, msg: String },
     /// The options passed are not valid.
     #[error("invalid parameter for the operation requested: {0}")]
     Invalid(String),
@@ -55,6 +52,10 @@ impl Error {
         E: std::fmt::Display,
     {
         Self::ResolveQuery(e.to_string())
+    }
+
+    pub(crate) fn split_err(idx: usize) -> impl FnMut(std::io::Error) -> Self {
+        move |e| Self::Split(e, idx)
     }
 }
 
@@ -75,10 +76,16 @@ pub trait DatabaseError<T, E> {
 
     /// Convert `E` to an [`Error`] that has a given migration in the error
     /// type's source.
-    fn tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<T>;
+    fn tern_migration_result<M: Migration + ?Sized>(
+        self,
+        migration: &M,
+    ) -> TernResult<T>;
 
     /// Same as `tern_migration_result` but discard the returned value.
-    fn void_tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<()>;
+    fn void_tern_migration_result<M: Migration + ?Sized>(
+        self,
+        migration: &M,
+    ) -> TernResult<()>;
 
     /// Attach an array of `MigrationResult`, representing a partially successful
     /// migration operation, to the error.
@@ -96,7 +103,10 @@ where
         }
     }
 
-    fn void_tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<()> {
+    fn void_tern_migration_result<M: Migration + ?Sized>(
+        self,
+        migration: &M,
+    ) -> TernResult<()> {
         match self {
             Err(e) => Err(Error::ExecuteMigration(
                 Box::new(e),
@@ -114,7 +124,10 @@ where
         }
     }
 
-    fn tern_migration_result<M: Migration + ?Sized>(self, migration: &M) -> TernResult<T> {
+    fn tern_migration_result<M: Migration + ?Sized>(
+        self,
+        migration: &M,
+    ) -> TernResult<T> {
         match self {
             Ok(v) => Ok(v),
             Err(e) => Err(Error::ExecuteMigration(

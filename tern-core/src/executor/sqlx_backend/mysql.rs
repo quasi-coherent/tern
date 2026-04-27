@@ -37,7 +37,10 @@ CREATE TABLE IF NOT EXISTS {history_table}(
         Query::new(sql)
     }
 
-    fn insert_into_history_query(history_table: &str, _: &AppliedMigration) -> Query {
+    fn insert_into_history_query(
+        history_table: &str,
+        _: &AppliedMigration,
+    ) -> Query {
         // With `sqlx` we're not going to use the `AppliedMigration`, the values
         // will get in the query by `bind`ing them.
         let sql = format!(
@@ -69,7 +72,10 @@ ORDER BY
         Query::new(sql)
     }
 
-    fn upsert_history_query(history_table: &str, _: &AppliedMigration) -> Query {
+    fn upsert_history_query(
+        history_table: &str,
+        _: &AppliedMigration,
+    ) -> Query {
         let sql = format!(
             "
 INSERT INTO {history_table}(version, description, content, duration_ms, applied_at)
