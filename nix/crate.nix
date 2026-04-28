@@ -15,8 +15,6 @@ let
         fileset = lib.fileset.unions [
           # Captures all toml, rs, and Cargo.lock
           (crane.fileset.commonCargoSources ../.)
-          ../Cargo.toml
-          ../Cargo.lock
           ../examples/simple/migrations
           ../examples/dynamic/migrations
         ];

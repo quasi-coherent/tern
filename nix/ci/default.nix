@@ -28,23 +28,8 @@ in
         nix-flake-check = {
           steps = setup ++ [
             {
-              uses = "cachix/cachix-action@v17";
-              "with" = {
-                name = "quasi-coherent";
-                authToken = "'\${{ secrets.CACHIX_AUTH_TOKEN }}'";
-              };
-            }
-            {
               name = "Check flake";
               run = "nix -Lv flake check";
-            }
-          ];
-        };
-        formatter = {
-          steps = setup ++ [
-            {
-              name = "Run formatting check";
-              run = "nix run";
             }
           ];
         };
@@ -59,11 +44,12 @@ in
               uses = "cachix/cachix-action@v17";
               "with" = {
                 name = "quasi-coherent";
-                authToken = "'\${{ secrets.CACHIX_AUTH_TOKEN }}'";
+                authToken = "\${{ secrets.CACHIX_AUTH_TOKEN }}";
               };
             }
             {
-              run = "cachix watch-exec quasi-coherent -- nix build .#tern";
+              name = "Cache build";
+              run = "nix -Lv build";
             }
           ];
         };

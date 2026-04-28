@@ -22,6 +22,7 @@
           packages = [
             fmtt
             pkgs.cachix
+            pkgs.just
             rustPkgs.toolchain
           ];
 
