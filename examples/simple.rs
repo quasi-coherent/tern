@@ -1,5 +1,7 @@
-use custom_context::ExampleOptions;
 use tern::App;
+
+pub mod simple;
+use simple::ExampleOptions;
 
 #[tokio::main]
 async fn main() {

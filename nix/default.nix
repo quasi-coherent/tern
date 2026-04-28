@@ -2,8 +2,12 @@
 {
   imports = [
     inputs.treefmt-nix.flakeModule
-    ./packages.nix
+
+    ./checks.nix
+    ./lib.nix
     ./shells.nix
+    ./tern.nix
+    ./treefmt.nix
   ];
 
   perSystem =
