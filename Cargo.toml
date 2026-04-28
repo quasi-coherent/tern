@@ -4,7 +4,6 @@ members = [
   "tern-core",
   "tern-cli",
   "tern-derive",
-  "examples/*",
 ]
 default-members = ["tern-core", "tern-cli", "tern-derive"]
 exclude = []
@@ -39,16 +38,30 @@ sqlx_postgres = ["tern-core/sqlx_postgres"]
 sqlx_mysql = ["tern-core/sqlx_mysql"]
 sqlx_sqlite = ["tern-core/sqlx_sqlite"]
 
+[dependencies]
+tern-core = { workspace = true }
+tern-cli = { workspace = true, optional = true }
+tern-derive = { workspace = true }
+
 [workspace.dependencies]
+tern = { version = "=3.1.4", path = "." }
 tern-core = { version = "=3.1.4", path = "tern-core" }
 tern-cli = { version = "=3.1.4", path = "tern-cli" }
 tern-derive = { version = "=3.1.4", path = "tern-derive" }
 
 log = "0.4.29"
 regex = "1.12.3"
-tracing = "0.1.44"
+sqlx = { version = "0.8.6", default-features = false }
 
-[dependencies]
-tern-core = { workspace = true }
-tern-cli = { workspace = true, optional = true }
-tern-derive = { workspace = true }
+[dev-dependencies]
+anyhow = "1.0"
+env_logger = "0.11.10"
+tokio = { version = "1.0", default-features = false }
+
+[[example]]
+name = "simple"
+required-features = ["cli", "sqlx_postgres"]
+
+[[example]]
+name = "dynamic-query"
+required-features = ["cli", "sqlx_postgres"]

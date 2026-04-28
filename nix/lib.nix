@@ -8,7 +8,10 @@
     {
       _module.args = {
         inherit rustPkgs;
-        craneLib = (inputs.crane.mkLib pkgs).overrideToolchain rustPkgs.toolchain;
+
+        crane = (inputs.crane.mkLib pkgs).overrideToolchain rustPkgs.toolchain;
+
+        craneWithToolchain = toolchain: (inputs.crane.mkLib pkgs).overrideToolchain toolchain;
       };
     };
 }

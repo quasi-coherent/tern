@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::{env, ffi::OsStr, fs, sync::OnceLock};
 
 pub fn cargo_manifest_dir() -> PathBuf {
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let manifest_dir =
+        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     PathBuf::from(manifest_dir)
 }
 
@@ -55,14 +56,23 @@ impl MigrationSource {
             Self::Sql(s) => s.version,
             Self::Rs(s) => s.version,
         });
-        Validator::new(sources.iter().map(|v| v.migration_id()).collect::<Vec<_>>()).validate()?;
+        Validator::new(
+            sources.iter().map(|v| v.migration_id()).collect::<Vec<_>>(),
+        )
+        .validate()?;
 
         Ok(sources)
     }
 
-    fn parse_sources(location: PathBuf) -> Result<Vec<MigrationSource>, SourceError> {
+    fn parse_sources(
+        location: PathBuf,
+    ) -> Result<Vec<MigrationSource>, SourceError> {
         let sources = fs::read_dir(location)
-            .map_err(|_| SourceError::Directory("could not read migration directory".to_string()))?
+            .map_err(|_| {
+                SourceError::Directory(
+                    "could not read migration directory".to_string(),
+                )
+            })?
             .filter_map(|entry| {
                 let e = entry.ok()?;
                 if e.file_name()
@@ -82,16 +92,12 @@ impl MigrationSource {
 
     fn migration_id(&self) -> (i64, String) {
         match self {
-            Self::Sql(SqlSource {
-                version,
-                description,
-                ..
-            }) => (*version, description.clone()),
-            Self::Rs(RustSource {
-                version,
-                description,
-                ..
-            }) => (*version, description.clone()),
+            Self::Sql(SqlSource { version, description, .. }) => {
+                (*version, description.clone())
+            },
+            Self::Rs(RustSource { version, description, .. }) => {
+                (*version, description.clone())
+            },
         }
     }
 
@@ -115,11 +121,12 @@ impl MigrationSource {
                 r"format is `^V(\d+)__(\w+)\.(sql|rs)$`, got {:?}",
                 filepath.to_str(),
             )))?;
-        let version: i64 = ver
-            .parse()
-            .map_err(|_| SourceError::Name("invalid version, expected i64".to_string()))?;
+        let version: i64 = ver.parse().map_err(|_| {
+            SourceError::Name("invalid version, expected i64".to_string())
+        })?;
         let source_type = SourceType::from_ext(ext)?;
-        let content = fs::read_to_string(filepath).map_err(|e| SourceError::Io(e.to_string()))?;
+        let content = fs::read_to_string(filepath)
+            .map_err(|e| SourceError::Io(e.to_string()))?;
         let module = module
             .to_str()
             .ok_or(SourceError::Name(
@@ -137,7 +144,7 @@ impl MigrationSource {
                     no_tx,
                 };
                 Self::Sql(sql_source)
-            }
+            },
             _ => {
                 let rust_source = RustSource {
                     module,
@@ -146,7 +153,7 @@ impl MigrationSource {
                     content,
                 };
                 Self::Rs(rust_source)
-            }
+            },
         };
 
         Ok(this)
@@ -208,7 +215,7 @@ impl Validator {
                     }
                 }
                 Ok(())
-            }
+            },
             _ => Ok(()),
         }
     }
@@ -282,10 +289,8 @@ mod tests {
     use super::{SourceError, Validator, Version};
 
     fn to_validator(vs: Vec<i64>) -> Validator {
-        let ids = vs
-            .into_iter()
-            .map(|v| (v, v.to_string()))
-            .collect::<Vec<_>>();
+        let ids =
+            vs.into_iter().map(|v| (v, v.to_string())).collect::<Vec<_>>();
         Validator::new(ids)
     }
 

@@ -65,7 +65,8 @@ where
 
             let applied_at = Utc::now();
             let duration_ms = start.elapsed().as_millis() as i64;
-            let applied = migration.to_applied(duration_ms, applied_at, query.sql());
+            let applied =
+                migration.to_applied(duration_ms, applied_at, query.sql());
             executor
                 .insert_applied_migration(Self::HISTORY_TABLE, &applied)
                 .await?;
@@ -93,15 +94,16 @@ where
     }
 
     /// Get all previously applied migrations.
-    fn previously_applied(&mut self) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
+    fn previously_applied(
+        &mut self,
+    ) -> BoxFuture<'_, TernResult<Vec<AppliedMigration>>> {
         Box::pin(self.executor().get_all_applied(Self::HISTORY_TABLE))
     }
 
     /// Check that the history table exists and create it if not.
     fn check_history_table(&mut self) -> BoxFuture<'_, TernResult<()>> {
         Box::pin(
-            self.executor()
-                .create_history_if_not_exists(Self::HISTORY_TABLE),
+            self.executor().create_history_if_not_exists(Self::HISTORY_TABLE),
         )
     }
 
@@ -144,10 +146,16 @@ where
     type Queries: QueryRepository;
 
     /// Apply the `Query` for the migration in a transaction.
-    fn apply_tx(&mut self, query: &Query) -> impl Future<Output = TernResult<()>> + Send;
+    fn apply_tx(
+        &mut self,
+        query: &Query,
+    ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// Apply the `Query` for the migration _not_ in a transaction.
-    fn apply_no_tx(&mut self, query: &Query) -> impl Future<Output = TernResult<()>> + Send;
+    fn apply_no_tx(
+        &mut self,
+        query: &Query,
+    ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// `CREATE IF NOT EXISTS` the history table.
     fn create_history_if_not_exists(
@@ -156,7 +164,10 @@ where
     ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// `DROP` the history table.
-    fn drop_history(&mut self, history_table: &str) -> impl Future<Output = TernResult<()>> + Send;
+    fn drop_history(
+        &mut self,
+        history_table: &str,
+    ) -> impl Future<Output = TernResult<()>> + Send;
 
     /// Get the complete history of applied migrations.
     fn get_all_applied(
@@ -190,13 +201,19 @@ pub trait QueryRepository {
     fn drop_history_query(history_table: &str) -> Query;
 
     /// The query to update the schema history table with an applied migration.
-    fn insert_into_history_query(history_table: &str, applied: &AppliedMigration) -> Query;
+    fn insert_into_history_query(
+        history_table: &str,
+        applied: &AppliedMigration,
+    ) -> Query;
 
     /// The query to return all rows from the schema history table.
     fn select_star_from_history_query(history_table: &str) -> Query;
 
     /// Query to insert or update a record in the history table.
-    fn upsert_history_query(history_table: &str, applied: &AppliedMigration) -> Query;
+    fn upsert_history_query(
+        history_table: &str,
+        applied: &AppliedMigration,
+    ) -> Query;
 }
 
 /// A single migration in a migration set.
@@ -218,7 +235,10 @@ where
     fn no_tx(&self) -> bool;
 
     /// Produce a future resolving to the migration query when `await`ed.
-    fn build<'a>(&'a self, ctx: &'a mut Self::Ctx) -> BoxFuture<'a, TernResult<Query>>;
+    fn build<'a>(
+        &'a self,
+        ctx: &'a mut Self::Ctx,
+    ) -> BoxFuture<'a, TernResult<Query>>;
 
     /// The migration version.
     fn version(&self) -> i64 {
@@ -233,7 +253,12 @@ where
         applied_at: DateTime<Utc>,
         content: &str,
     ) -> AppliedMigration {
-        AppliedMigration::new(self.migration_id(), content, duration_ms, applied_at)
+        AppliedMigration::new(
+            self.migration_id(),
+            content,
+            duration_ms,
+            applied_at,
+        )
     }
 }
 
@@ -245,7 +270,10 @@ pub trait MigrationSource {
     type Ctx: MigrationContext;
 
     /// The set of migrations since `last_applied`.
-    fn migration_set(&self, last_applied: Option<i64>) -> MigrationSet<Self::Ctx>;
+    fn migration_set(
+        &self,
+        last_applied: Option<i64>,
+    ) -> MigrationSet<Self::Ctx>;
 }
 
 /// The `Migration`s derived from the files in the source directory that need to
@@ -274,18 +302,12 @@ where
 
     /// Versions present in this migration set.
     pub fn versions(&self) -> Vec<i64> {
-        self.migrations
-            .iter()
-            .map(|m| m.version())
-            .collect::<Vec<_>>()
+        self.migrations.iter().map(|m| m.version()).collect::<Vec<_>>()
     }
 
     /// The version/name of migrations in this migration set.
     pub fn migration_ids(&self) -> Vec<MigrationId> {
-        self.migrations
-            .iter()
-            .map(|m| m.migration_id())
-            .collect::<Vec<_>>()
+        self.migrations.iter().map(|m| m.migration_id()).collect::<Vec<_>>()
     }
 
     /// The latest version in the set.
@@ -309,7 +331,10 @@ pub trait QueryBuilder {
     type Ctx: MigrationContext;
 
     /// Asynchronously produce the migration query.
-    fn build(&self, ctx: &mut Self::Ctx) -> impl Future<Output = TernResult<Query>> + Send;
+    fn build(
+        &self,
+        ctx: &mut Self::Ctx,
+    ) -> impl Future<Output = TernResult<Query>> + Send;
 }
 
 /// A SQL query.
@@ -380,22 +405,20 @@ impl Query {
     /// to syntax errors during query execution.
     pub fn split_statements(&self) -> TernResult<Vec<String>> {
         let mut statements = Vec::new();
-        self.sanitize()
-            .lines()
-            .try_fold(String::new(), |mut buf, line| {
-                if line.trim().is_empty() {
-                    return Ok(buf);
-                }
-                writeln!(buf, "{line}")?;
-                // If the line ends with `;` this is the end of the statement, so
-                // push the accumulated buffer to the vector and start a new one.
-                if line.ends_with(";") {
-                    statements.push(buf);
-                    Ok::<String, std::fmt::Error>(String::new())
-                } else {
-                    Ok(buf)
-                }
-            })?;
+        self.sanitize().lines().try_fold(String::new(), |mut buf, line| {
+            if line.trim().is_empty() {
+                return Ok(buf);
+            }
+            writeln!(buf, "{line}")?;
+            // If the line ends with `;` this is the end of the statement, so
+            // push the accumulated buffer to the vector and start a new one.
+            if line.ends_with(";") {
+                statements.push(buf);
+                Ok::<String, std::fmt::Error>(String::new())
+            } else {
+                Ok(buf)
+            }
+        })?;
 
         Ok(statements)
     }
@@ -418,10 +441,7 @@ pub struct MigrationId {
 
 impl MigrationId {
     pub fn new(version: i64, description: String) -> Self {
-        Self {
-            version,
-            description,
-        }
+        Self { version, description }
     }
 
     pub fn version(&self) -> i64 {
@@ -441,10 +461,7 @@ impl std::fmt::Display for MigrationId {
 
 impl From<AppliedMigration> for MigrationId {
     fn from(value: AppliedMigration) -> Self {
-        Self {
-            version: value.version,
-            description: value.description,
-        }
+        Self { version: value.version, description: value.description }
     }
 }
 

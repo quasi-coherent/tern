@@ -2,6 +2,11 @@
   outputs = inputs: import ./. inputs;
 
   inputs = {
+    actions-nix = {
+      url = "github:nialov/actions.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-parts.follows = "flake-parts";
+    };
     crane.url = "github:ipetkov/crane";
     fenix = {
       url = "github:nix-community/fenix";

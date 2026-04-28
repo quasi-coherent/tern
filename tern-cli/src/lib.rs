@@ -21,7 +21,10 @@ pub trait ContextOptions {
     type Ctx: MigrationContext;
 
     /// Establish a connection with this context.
-    fn connect(&self, db_url: &str) -> impl Future<Output = TernResult<Self::Ctx>>;
+    fn connect(
+        &self,
+        db_url: &str,
+    ) -> impl Future<Output = TernResult<Self::Ctx>>;
 }
 
 /// The CLI app to run.
@@ -67,7 +70,7 @@ impl<T> App<T> {
                     runner.init_history().await?;
 
                     Ok(None)
-                }
+                },
                 cli::HistoryCommands::Drop { connect_opts } => {
                     let db_url = connect_opts.required_db_url()?.to_string();
                     let context = self.inner.connect(&db_url).await?;
@@ -75,7 +78,7 @@ impl<T> App<T> {
                     runner.drop_history().await?;
 
                     Ok(None)
-                }
+                },
                 cli::HistoryCommands::SoftApply { .. } => Err(anyhow::anyhow!(
                     "Deprecated: use `migrate soft-apply` instead"
                 )),
@@ -89,21 +92,19 @@ impl<T> App<T> {
                     let db_url = connect_opts.required_db_url()?.to_string();
                     let context = self.inner.connect(&db_url).await?;
                     let mut runner = Runner::new(context);
-                    let report = runner.run_apply(*target_version, *dryrun).await?;
+                    let report =
+                        runner.run_apply(*target_version, *dryrun).await?;
 
                     Ok(Some(report))
-                }
-                cli::MigrateCommands::ApplyAll {
-                    dryrun,
-                    connect_opts,
-                } => {
+                },
+                cli::MigrateCommands::ApplyAll { dryrun, connect_opts } => {
                     let db_url = connect_opts.required_db_url()?.to_string();
                     let context = self.inner.connect(&db_url).await?;
                     let mut runner = Runner::new(context);
                     let report = runner.run_apply_all(*dryrun).await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::SoftApply {
                     dryrun,
                     target_version,
@@ -112,10 +113,11 @@ impl<T> App<T> {
                     let db_url = connect_opts.required_db_url()?.to_string();
                     let context = self.inner.connect(&db_url).await?;
                     let mut runner = Runner::new(context);
-                    let report = runner.run_soft_apply(*target_version, *dryrun).await?;
+                    let report =
+                        runner.run_soft_apply(*target_version, *dryrun).await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::ListApplied { connect_opts } => {
                     let db_url = connect_opts.required_db_url()?.to_string();
                     let context = self.inner.connect(&db_url).await?;
@@ -123,7 +125,7 @@ impl<T> App<T> {
                     let report = runner.list_applied().await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::New {
                     description,
                     no_tx,
@@ -138,7 +140,7 @@ impl<T> App<T> {
                     )?;
 
                     Ok(None)
-                }
+                },
             },
         }
     }
@@ -158,45 +160,45 @@ impl<T> App<T> {
                     runner.init_history().await?;
 
                     Ok(None)
-                }
+                },
                 cli::HistoryCommands::Drop { .. } => {
                     runner.drop_history().await?;
 
                     Ok(None)
-                }
+                },
                 cli::HistoryCommands::SoftApply { .. } => Err(anyhow::anyhow!(
                     "Deprecated: use `migrate soft-apply` instead"
                 )),
             },
             cli::TernCommands::Migrate(migrate) => match migrate.commands {
                 cli::MigrateCommands::Apply {
-                    dryrun,
-                    target_version,
-                    ..
+                    dryrun, target_version, ..
                 } => {
-                    let report = runner.run_apply(target_version, dryrun).await?;
+                    let report =
+                        runner.run_apply(target_version, dryrun).await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::ApplyAll { dryrun, .. } => {
                     let report = runner.run_apply_all(dryrun).await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::SoftApply {
                     dryrun,
                     target_version,
                     ..
                 } => {
-                    let report = runner.run_soft_apply(target_version, dryrun).await?;
+                    let report =
+                        runner.run_soft_apply(target_version, dryrun).await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::ListApplied { .. } => {
                     let report = runner.list_applied().await?;
 
                     Ok(Some(report))
-                }
+                },
                 cli::MigrateCommands::New {
                     description,
                     no_tx,
@@ -211,7 +213,7 @@ impl<T> App<T> {
                     )?;
 
                     Ok(None)
-                }
+                },
             },
         }
     }

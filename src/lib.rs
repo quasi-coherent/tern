@@ -244,7 +244,8 @@ pub use tern_core::error::{self, DatabaseError, Error, TernResult};
 
 #[doc(inline)]
 pub use tern_core::migration::{
-    self, Executor, Migration, MigrationContext, MigrationSet, MigrationSource, Query, QueryBuilder,
+    self, Executor, Migration, MigrationContext, MigrationSet, MigrationSource,
+    Query, QueryBuilder,
 };
 
 #[doc(inline)]

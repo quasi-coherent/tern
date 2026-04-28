@@ -10,7 +10,8 @@ use crate::internal::parse;
 // the migration sources, builds implementations of `Migration` for
 // all of them, and then associates the sorted vector of the migrations to the
 // type deriving this via the `MigrationSource` trait implementation.
-pub type MigrationSourceContainer<'a> = Container<'a, TernDeriveAttr, SkipParseAttr>;
+pub type MigrationSourceContainer<'a> =
+    Container<'a, TernDeriveAttr, SkipParseAttr>;
 
 impl<'a> MigrationSourceContainer<'a> {
     pub fn new(input: &'a syn::DeriveInput) -> Result<Self> {
@@ -22,7 +23,8 @@ impl<'a> MigrationSourceContainer<'a> {
         let source = &self.attrs.source;
         let migration_set = MigrationSetContainer::new(ident, source)?;
 
-        let quote_migration_source_impl = migration_set.quote_migration_source_impl();
+        let quote_migration_source_impl =
+            migration_set.quote_migration_source_impl();
         let quote_migration_mods = migration_set.quote_migration_modules();
         let quote_migration_impls = migration_set.quote_migration_impls();
 
@@ -76,18 +78,19 @@ impl MigrationSetContainer {
             )
         })?;
         let migration_dir = parse::cargo_manifest_dir().join(src);
-        let migrations = parse::MigrationSource::from_migration_dir(migration_dir)
-            .map_err(|e| {
-                syn::Error::new(ident.span(), format!("error with migration source: {e:?}"))
-            })?
-            .into_iter()
-            .map(MigrationContainer::from)
-            .collect::<Vec<_>>();
+        let migrations =
+            parse::MigrationSource::from_migration_dir(migration_dir)
+                .map_err(|e| {
+                    syn::Error::new(
+                        ident.span(),
+                        format!("error with migration source: {e:?}"),
+                    )
+                })?
+                .into_iter()
+                .map(MigrationContainer::from)
+                .collect::<Vec<_>>();
 
-        Ok(Self {
-            ident: ident.clone(),
-            migrations,
-        })
+        Ok(Self { ident: ident.clone(), migrations })
     }
 
     // Use the expanded vector of `Box::new(module_name::TernMigration)`s
@@ -191,12 +194,12 @@ impl MigrationContainer {
                         #quote_impl_query_builder
                     }
                 }
-            }
+            },
             Self::Rs(_) => {
                 quote! {
                     mod #module;
                 }
-            }
+            },
         }
     }
 
@@ -211,7 +214,7 @@ impl MigrationContainer {
             Self::Sql(s) => {
                 let no_tx = &s.no_tx;
                 quote! { #no_tx }
-            }
+            },
             _ => quote! { self.no_tx() },
         };
 
@@ -310,8 +313,14 @@ impl From<parse::SqlSource> for SqlSourceContainer {
     fn from(value: parse::SqlSource) -> Self {
         Self {
             module: syn::Ident::new(&value.module, Span::call_site()),
-            version: syn::LitInt::new(&format!("{}", value.version), Span::call_site()),
-            description: syn::LitStr::new(&value.description, Span::call_site()),
+            version: syn::LitInt::new(
+                &format!("{}", value.version),
+                Span::call_site(),
+            ),
+            description: syn::LitStr::new(
+                &value.description,
+                Span::call_site(),
+            ),
             content: syn::LitStr::new(&value.content, Span::call_site()),
             no_tx: syn::LitBool::new(value.no_tx, Span::call_site()),
         }
@@ -322,8 +331,14 @@ impl From<parse::RustSource> for RustSourceContainer {
     fn from(value: parse::RustSource) -> Self {
         Self {
             module: syn::Ident::new(&value.module, Span::call_site()),
-            version: syn::LitInt::new(&format!("{}", value.version), Span::call_site()),
-            description: syn::LitStr::new(&value.description, Span::call_site()),
+            version: syn::LitInt::new(
+                &format!("{}", value.version),
+                Span::call_site(),
+            ),
+            description: syn::LitStr::new(
+                &value.description,
+                Span::call_site(),
+            ),
             content: syn::LitStr::new(&value.content, Span::call_site()),
         }
     }
@@ -332,8 +347,12 @@ impl From<parse::RustSource> for RustSourceContainer {
 impl From<parse::MigrationSource> for MigrationContainer {
     fn from(value: parse::MigrationSource) -> Self {
         match value {
-            parse::MigrationSource::Sql(s) => Self::Sql(SqlSourceContainer::from(s)),
-            parse::MigrationSource::Rs(s) => Self::Rs(RustSourceContainer::from(s)),
+            parse::MigrationSource::Sql(s) => {
+                Self::Sql(SqlSourceContainer::from(s))
+            },
+            parse::MigrationSource::Rs(s) => {
+                Self::Rs(RustSourceContainer::from(s))
+            },
         }
     }
 }
