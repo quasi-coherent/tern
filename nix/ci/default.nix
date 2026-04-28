@@ -20,7 +20,10 @@ in
         "master"
         "dev/*"
       ];
-      concurrency.cancel-in-progress = true;
+      concurrency = {
+        cancel-in-progress = true;
+        group = "\${{ github.workflow }}-\${{ github.event.pull_request.number || github.sha }}";
+      };
       jobs = {
         nix-flake-check = {
           steps = setup ++ [

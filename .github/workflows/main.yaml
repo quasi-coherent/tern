@@ -5,6 +5,8 @@
 # Or commit to trigger the pre-commit hook if enabled.
 concurrency:
   cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha
+    }}
 jobs:
   formatter:
     runs-on: ubuntu-latest
