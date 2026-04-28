@@ -1,6 +1,6 @@
 { inputs, ... }:
 let
-  setup = [
+  baseSteps = [
     { uses = "actions/checkout@v6"; }
     {
       uses = "cachix/install-nix-action@v30";
@@ -9,7 +9,15 @@ let
       };
     }
   ];
-  cacheSetup = setup ++ [
+  defaultSteps = baseSteps ++ [
+    {
+      uses = "cachix/cachix-action@v17";
+      "with" = {
+        name = "quasi-coherent";
+      };
+    }
+  ];
+  cacheOutput = baseSteps ++ [
     {
       uses = "cachix/cachix-action@v17";
       "with" = {
@@ -34,7 +42,7 @@ in
       };
       jobs = {
         nix-flake-check = {
-          steps = setup ++ [
+          steps = defaultSteps ++ [
             {
               name = "Run flake checks";
               run = "nix -Lv flake check";
@@ -50,7 +58,7 @@ in
       ];
       jobs = {
         nix-flake-check-fast = {
-          steps = setup ++ [
+          steps = defaultSteps ++ [
             {
               name = "Run flake checks";
               run = "nix flake check --no-build";
@@ -59,7 +67,7 @@ in
         };
         cachix-cache-deps = {
           needs = [ "nix-flake-check-fast" ];
-          steps = cacheSetup ++ [
+          steps = cacheOutput ++ [
             {
               name = "Cache build deps";
               run = "nix build .#tern-deps";
