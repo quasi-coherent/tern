@@ -7,6 +7,7 @@
         cargoArtifacts = self'.packages.tern-deps;
         strictDeps = true;
       };
+      defaultSelect = "--all-features --all-targets";
     in
     {
       checks = {
@@ -20,14 +21,14 @@
         lint = crane.cargoClippy (
           args
           // {
-            cargoClippyExtraArgs = "--all-targets -- -Dwarnings";
+            cargoClippyExtraArgs = "${defaultSelect} -- -Dwarnings";
           }
         );
 
         test = crane.cargoTest (
           args
           // {
-            cargoTestExtraArgs = "--all-targets";
+            cargoTestExtraArgs = "${defaultSelect}";
           }
         );
       };

@@ -27,7 +27,17 @@ in
       jobs = {
         nix-flake-check = {
           steps = setup ++ [
-            inputs.actions-nix.lib.steps.runNixFlakeCheck
+            {
+              uses = "cachix/cachix-action@v17";
+              "with" = {
+                name = "quasi-coherent";
+                authToken = "'\${{ secrets.CACHIX_AUTH_TOKEN }}'";
+              };
+            }
+            {
+              name = "Check flake";
+              run = "nix -Lv flake check";
+            }
           ];
         };
         formatter = {
@@ -51,6 +61,9 @@ in
                 name = "quasi-coherent";
                 authToken = "'\${{ secrets.CACHIX_AUTH_TOKEN }}'";
               };
+            }
+            {
+              run = "cachix watch-exec quasi-coherent -- nix build .#tern";
             }
           ];
         };

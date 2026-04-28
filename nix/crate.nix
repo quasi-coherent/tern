@@ -1,12 +1,7 @@
 { lib, ... }:
 let
   perSystem =
-    {
-      crane,
-      craneWithToolchain,
-      inputs',
-      ...
-    }:
+    { crane, ... }:
     let
       # Following crane docs uses cleanCargoSource, which for us filters out the
       # directories that have migrations in them and we need those.  So we have
@@ -32,6 +27,7 @@ let
       args = {
         inherit src version;
         strictDeps = true;
+        cargoBuildExtraArgs = "--all-features";
       };
 
       # Creating a package of only the dependencies ensures that the derivation
@@ -42,24 +38,31 @@ let
         pname:
         crane.buildPackage {
           inherit pname cargoArtifacts;
-          inherit (args) src version strictDeps;
+          inherit (args)
+            src
+            version
+            strictDeps
+            cargoBuildExtraArgs
+            ;
           cargoExtraArgs = "-p ${pname}";
         };
+
+      tern = crane.buildPackage {
+        inherit (args)
+          src
+          strictDeps
+          version
+          ;
+        inherit cargoArtifacts;
+        pname = "tern";
+      };
     in
     {
       packages = {
+        inherit tern;
+
+        default = tern;
         tern-deps = cargoArtifacts;
-
-        tern = crane.buildPackage {
-          inherit (args)
-            src
-            strictDeps
-            version
-            ;
-          inherit cargoArtifacts;
-          pname = "tern";
-        };
-
         tern-cli = mkTernPackage "tern-cli";
         tern-core = mkTernPackage "tern-core";
         tern-derive = mkTernPackage "tern-derive";
