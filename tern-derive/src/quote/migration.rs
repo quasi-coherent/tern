@@ -36,7 +36,9 @@ impl ParseAttr<syn::DeriveInput> for MigrationAttr {
         Self::default()
     }
 
-    fn attrs(input: &syn::DeriveInput) -> impl Iterator<Item = &syn::Attribute> {
+    fn attrs(
+        input: &syn::DeriveInput,
+    ) -> impl Iterator<Item = &syn::Attribute> {
         input.attrs.iter()
     }
 

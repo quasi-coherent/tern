@@ -14,13 +14,17 @@ pub fn expand_impl_migration(input: &syn::DeriveInput) -> Result<TokenStream> {
     Ok(output)
 }
 
-pub fn expand_impl_migration_context(input: &syn::DeriveInput) -> Result<TokenStream> {
+pub fn expand_impl_migration_context(
+    input: &syn::DeriveInput,
+) -> Result<TokenStream> {
     let container = migration_context::MigrationContextContainer::new(input)?;
     let output = container.quote_impl_migration_context()?;
     Ok(output)
 }
 
-pub fn expand_impl_migration_source(input: &syn::DeriveInput) -> Result<TokenStream> {
+pub fn expand_impl_migration_source(
+    input: &syn::DeriveInput,
+) -> Result<TokenStream> {
     let container = migration_source::MigrationSourceContainer::new(input)?;
     let output = container.quote_impl_migration_source()?;
     Ok(output)
@@ -39,7 +43,9 @@ impl ParseAttr<syn::DeriveInput> for TernDeriveAttr {
         Self::default()
     }
 
-    fn attrs(input: &syn::DeriveInput) -> impl Iterator<Item = &syn::Attribute> {
+    fn attrs(
+        input: &syn::DeriveInput,
+    ) -> impl Iterator<Item = &syn::Attribute> {
         input.attrs.iter()
     }
 
@@ -56,7 +62,10 @@ impl ParseAttr<syn::DeriveInput> for TernDeriveAttr {
                     let parsed_source: syn::LitStr = meta.value()?.parse()?;
                     self.source = Some(parsed_source);
                 } else {
-                    Err(syn::Error::new(attr.span(), "unknown `tern` attribute"))?;
+                    Err(syn::Error::new(
+                        attr.span(),
+                        "unknown `tern` attribute",
+                    ))?;
                 }
 
                 Ok(())

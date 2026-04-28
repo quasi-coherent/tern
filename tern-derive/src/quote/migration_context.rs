@@ -8,7 +8,8 @@ use crate::internal::ast::{Container, ParseAttr};
 // Derive `MigrationContext`.  This assumes that the type implements
 // `MigrationSource`, which can be done with the macro for it in this crate,
 // but it's more flexible to split them into two macros.
-pub type MigrationContextContainer<'a> = Container<'a, TernDeriveAttr, MigrationContextFieldAttr>;
+pub type MigrationContextContainer<'a> =
+    Container<'a, TernDeriveAttr, MigrationContextFieldAttr>;
 
 impl<'a> MigrationContextContainer<'a> {
     pub fn new(input: &'a syn::DeriveInput) -> Result<Self> {
@@ -63,7 +64,7 @@ impl<'a> MigrationContextContainer<'a> {
                         &mut self.#accessor
                     }
                 }
-            }
+            },
             _ => quote! {
                 #quote_assoc_const
                 type Exec = Self;

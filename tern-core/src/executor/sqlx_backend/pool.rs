@@ -4,11 +4,16 @@
 //! [`Executor`]: crate::migration::Executor
 //! [sqlx-pool]: https://docs.rs/sqlx/0.8.3/sqlx/struct.Pool.html
 use crate::error::{DatabaseError as _, TernResult};
-use crate::migration::{AppliedMigration, Executor as MigrationExecutor, Query, QueryRepository};
+use crate::migration::{
+    AppliedMigration, Executor as MigrationExecutor, Query, QueryRepository,
+};
 
 use chrono::{DateTime, Utc};
 use sqlx::pool::PoolOptions;
-use sqlx::{Acquire, Connection, Database, Encode, Executor, FromRow, IntoArguments, Pool, Type};
+use sqlx::{
+    Acquire, Connection, Database, Encode, Executor, FromRow, IntoArguments,
+    Pool, Type,
+};
 use std::marker::PhantomData;
 
 /// The generic `sqlx::Pool` as a migration executor backend.
@@ -30,10 +35,7 @@ where
     pub async fn new(db_url: &str) -> TernResult<Self> {
         let pool = Pool::connect(db_url).await.tern_result()?;
 
-        Ok(Self {
-            pool,
-            _q: PhantomData,
-        })
+        Ok(Self { pool, _q: PhantomData })
     }
 
     /// Create the pool from the given options.
@@ -43,10 +45,7 @@ where
     ) -> TernResult<Self> {
         let pool = pool_opts.connect_with(conn_opts).await.tern_result()?;
 
-        Ok(Self {
-            pool,
-            _q: PhantomData,
-        })
+        Ok(Self { pool, _q: PhantomData })
     }
 
     /// Exposing the underlying connection object for usage involving queries
@@ -77,9 +76,7 @@ where
     async fn apply_tx(&mut self, query: &Query) -> TernResult<()> {
         let mut tx = self.pool.begin().await.tern_result()?;
         let conn = tx.acquire().await.tern_result()?;
-        conn.execute(sqlx::raw_sql(query.sql()))
-            .await
-            .void_tern_result()?;
+        conn.execute(sqlx::raw_sql(query.sql())).await.void_tern_result()?;
         tx.commit().await.void_tern_result()?;
 
         Ok(())
@@ -97,23 +94,23 @@ where
         Ok(())
     }
 
-    async fn create_history_if_not_exists(&mut self, history_table: &str) -> TernResult<()> {
+    async fn create_history_if_not_exists(
+        &mut self,
+        history_table: &str,
+    ) -> TernResult<()> {
         let query = Q::create_history_if_not_exists_query(history_table);
-        self.pool
-            .execute(sqlx::raw_sql(query.sql()))
-            .await
-            .void_tern_result()
+        self.pool.execute(sqlx::raw_sql(query.sql())).await.void_tern_result()
     }
 
     async fn drop_history(&mut self, history_table: &str) -> TernResult<()> {
         let query = Q::drop_history_query(history_table);
-        self.pool
-            .execute(sqlx::raw_sql(query.sql()))
-            .await
-            .void_tern_result()
+        self.pool.execute(sqlx::raw_sql(query.sql())).await.void_tern_result()
     }
 
-    async fn get_all_applied(&mut self, history_table: &str) -> TernResult<Vec<AppliedMigration>> {
+    async fn get_all_applied(
+        &mut self,
+        history_table: &str,
+    ) -> TernResult<Vec<AppliedMigration>> {
         let query = Q::select_star_from_history_query(history_table);
         let applied = sqlx::query_as::<Db, AppliedMigration>(query.sql())
             .fetch_all(&self.pool)

@@ -22,7 +22,9 @@ where
         let attrs = Der::parse_ast(input)?;
         let fields = match &input.data {
             syn::Data::Struct(ds) => Self::fields(&ds.fields),
-            _ => Err(syn::Error::new(input.span(), "only structs are supported")),
+            _ => {
+                Err(syn::Error::new(input.span(), "only structs are supported"))
+            },
         }?;
 
         Ok(Self { ty, attrs, fields })
@@ -35,7 +37,7 @@ where
             syn::Fields::Named(fields_named) => {
                 style = Style::Named;
                 fields_named.named.iter()
-            }
+            },
             syn::Fields::Unnamed(fields_unnamed) => {
                 style = if fields_unnamed.unnamed.len() == 1 {
                     Style::Newtype
@@ -43,13 +45,10 @@ where
                     Style::Tuple
                 };
                 fields_unnamed.unnamed.iter()
-            }
+            },
             syn::Fields::Unit => {
-                return Ok(Fields {
-                    style: Style::Unit,
-                    fields: Vec::new(),
-                });
-            }
+                return Ok(Fields { style: Style::Unit, fields: Vec::new() });
+            },
         }
         .enumerate()
         .map(|(i, input)| Field::parse_ast(i, input))

@@ -2,7 +2,7 @@
 {
   perSystem =
     {
-      craneLib,
+      crane,
       pkgs,
       rustPkgs,
       self',
@@ -16,7 +16,7 @@
             text = ''${lib.getExe self'.formatter} "$@"'';
           };
         in
-        craneLib.devShell {
+        crane.devShell {
           inputsFrom = [ self'.packages.tern ];
 
           packages = [

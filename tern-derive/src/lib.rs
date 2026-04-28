@@ -68,7 +68,9 @@ pub fn migration(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// [`MigrationSource`]: crate::MigrationSource
 /// [`Executor`]: https://docs.rs/tern/latest/tern/trait.Executor.html
 #[proc_macro_derive(MigrationContext, attributes(tern))]
-pub fn migration_context(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn migration_context(
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     quote::expand_impl_migration_context(&input)
         .unwrap_or_else(syn::Error::into_compile_error)
@@ -99,7 +101,9 @@ pub fn migration_context(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 ///
 /// [`Migration`]: https://docs.rs/tern/latest/tern/trait.Migration.html
 #[proc_macro_derive(MigrationSource, attributes(tern))]
-pub fn migration_source(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn migration_source(
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     quote::expand_impl_migration_source(&input)
         .unwrap_or_else(syn::Error::into_compile_error)
