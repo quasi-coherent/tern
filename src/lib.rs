@@ -176,6 +176,26 @@
 //! pub struct TernMigration;
 //! ```
 //!
+//! For non-transactional queries, a migration file that has more than one SQL
+//! statement needs to be split into individual statements to send to the
+//! database separately, otherwise an engine will see one prepared statement and
+//! automatically choose to run it in a transaction.
+//!
+//! But parsing SQL is hard, so if there are issues with how `tern` splits your
+//! migration file, you can try to give `tern` a hint as to what dialect it's
+//! dealing with:
+//!
+//! ```sql
+//! -- tern:noTransaction,postgres
+//! -- With this annotation, the file will be assumed to contain PostgreSQL
+//! -- syntax.  Other accepted values are: `mysql`, `sqlite`.  The default is
+//! -- is postgres.
+//! ```
+//!
+//! You can also try to remove parts that are problematic, e.g., atypical use of
+//! of commenting, particularly block comments. If the issue still persisist,
+//! please open a bug ticket.
+//!
 //! ## CLI
 //!
 //! With the feature flag "cli" enabled the type [`App`] is exported, which is a

@@ -1,5 +1,8 @@
 system := `nix-instantiate --raw --strict --eval -E builtins.currentSystem`
 
+check:
+    nix flake check
+
 fmt:
     nix run
 

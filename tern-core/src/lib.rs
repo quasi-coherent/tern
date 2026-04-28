@@ -10,6 +10,7 @@
 pub mod error;
 pub mod executor;
 pub mod migration;
+mod query;
 pub mod runner;
 
 #[doc(hidden)]

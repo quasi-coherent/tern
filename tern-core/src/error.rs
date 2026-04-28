@@ -27,6 +27,9 @@ pub enum Error {
     /// Error processing a migration source.
     #[error("could not parse migration query: {0}")]
     Sql(#[from] std::fmt::Error),
+    /// Error parsing a SQL source into statements.
+    #[error("error splitting statement {1}: {0}")]
+    Split(std::io::Error, usize),
     /// Local migration source has fewer migrations than the history table.
     #[error(
         "missing source: {local} migrations found but {history} have been applied: {msg}"
@@ -50,6 +53,10 @@ impl Error {
         E: std::fmt::Display,
     {
         Self::ResolveQuery(e.to_string())
+    }
+
+    pub(crate) fn split_err(idx: usize) -> impl FnMut(std::io::Error) -> Self {
+        move |e| Self::Split(e, idx)
     }
 }
 
