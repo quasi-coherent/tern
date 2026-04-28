@@ -51,7 +51,6 @@ in
       jobs = {
         nix-flake-check-fast = {
           steps = setup ++ [
-
             {
               name = "Run flake checks";
               run = "nix flake check --no-build";
@@ -59,10 +58,10 @@ in
           ];
         };
         cachix-cache-deps = {
+          needs = [ "nix-flake-check-fast" ];
           steps = cacheSetup ++ [
             {
               name = "Cache build deps";
-              needs = "nix-flake-check-fast";
               run = "nix build .#tern-deps";
             }
           ];

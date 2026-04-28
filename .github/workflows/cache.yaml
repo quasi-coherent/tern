@@ -5,6 +5,8 @@
 # Or commit to trigger the pre-commit hook if enabled.
 jobs:
   cachix-cache-deps:
+    needs:
+    - nix-flake-check-fast
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -16,7 +18,6 @@ jobs:
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
         name: quasi-coherent
     - name: Cache build deps
-      needs: nix-flake-check-fast
       run: nix build .#tern-deps
   nix-flake-check-fast:
     runs-on: ubuntu-latest
