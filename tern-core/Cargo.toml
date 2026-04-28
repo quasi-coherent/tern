@@ -18,9 +18,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-sqlx_postgres = ["sqlx", "sqlx/chrono", "sqlx/postgres"]
-sqlx_mysql = ["sqlx", "sqlx/chrono", "sqlx/mysql"]
-sqlx_sqlite = ["sqlx", "sqlx/chrono", "sqlx/sqlite"]
+sqlx = ["dep:sqlx", "sqlx/chrono", "sqlx/derive"]
+sqlx_postgres =  ["sqlx/postgres"]
+sqlx_mysql = ["sqlx/mysql"]
+sqlx_sqlite = ["sqlx/sqlite"]
 
 [dependencies]
 chrono = { version = "0.4.44", features = ["serde"] }
@@ -30,5 +31,5 @@ log = { workspace = true }
 regex = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.8.6", default-features = false, optional = true }
+sqlx = { workspace = true, optional = true }
 thiserror = "2.0.18"

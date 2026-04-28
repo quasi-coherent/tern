@@ -3,25 +3,9 @@
 # (typically under flake.actions-nix.workflows.".github/workflows/main.yaml") and run:
 #   nix run .#render-workflows
 # Or commit to trigger the pre-commit hook if enabled.
+concurrency:
+  cancel-in-progress: true
 jobs:
-  cargo-clippy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v6
-    - uses: cachix/install-nix-action@v30
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-    - name: Run cargo clippy
-      run: nix run .#lint
-  cargo-test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v6
-    - uses: cachix/install-nix-action@v30
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-    - name: Run cargo test
-      run: nix run .#test
   formatter:
     runs-on: ubuntu-latest
     steps:

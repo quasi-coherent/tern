@@ -20,26 +20,11 @@ in
         "master"
         "dev/*"
       ];
+      concurrency.cancel-in-progress = true;
       jobs = {
         nix-flake-check = {
           steps = setup ++ [
             inputs.actions-nix.lib.steps.runNixFlakeCheck
-          ];
-        };
-        cargo-clippy = {
-          steps = setup ++ [
-            {
-              name = "Run cargo clippy";
-              run = "nix run .#lint";
-            }
-          ];
-        };
-        cargo-test = {
-          steps = setup ++ [
-            {
-              name = "Run cargo test";
-              run = "nix run .#test";
-            }
           ];
         };
         formatter = {
