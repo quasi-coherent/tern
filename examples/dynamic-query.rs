@@ -1,5 +1,7 @@
-use index_partitioned_table_concurrently::PgContextOptions;
 use tern::App;
+
+pub mod dynamic;
+use dynamic::PgContextOptions;
 
 #[tokio::main]
 async fn main() {
@@ -10,9 +12,9 @@ async fn main() {
 
     match app.run().await {
         Err(e) => log::error!("{e}"),
-        Ok(Some(report)) => report
-            .iter_results()
-            .for_each(|result| log::info!("{result}")),
+        Ok(Some(report)) => {
+            report.iter_results().for_each(|result| log::info!("{result}"))
+        },
         Ok(_) => log::info!("OK"),
     }
 }

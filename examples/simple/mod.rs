@@ -1,15 +1,9 @@
-//! The main part to play in the way this migration tool works is given to the
-//! traits `MigrationContext` and `MigrationSource`.  Derive macros exist for
-//! both, provided that the type deriving `MigrationSource` is `super` to the
-//! migration source directory if there are Rust migrations, since it has to
-//! reference the module containing a Rust migration.
+//! # simple
 //!
-//! For `MigrationSource`, the attribute `source` is the path to migrations
-//! relative to the project root and it is required.  For `MigrationContext` the
-//! attribute `table` allows you to create the schema history in a custom
-//! location.  The field attribute `executor_via` points out the field that
-//! should be used to implement the required functionality a database connection
-//! would have.
+//! This simple example shows how to use the derive macros to build a Rust value
+//! that contains the migrations defined in ./migrations, where at least one of
+//! the migrations has special requirements that needs to extend the migration
+//! context at runtime.
 use tern::{ContextOptions, SqlxPgExecutor, error::TernResult};
 use tern::{MigrationContext, MigrationSource};
 
@@ -18,7 +12,7 @@ use tern::{MigrationContext, MigrationSource};
 /// the migration runner to run queries.  We're also going to use a custom
 /// schema migration history table.
 #[derive(MigrationContext, MigrationSource)]
-#[tern(source = "src/migrations", table = "example_schema_history")]
+#[tern(source = "migrations", table = "example_schema_history")]
 pub struct ExampleContext {
     #[tern(executor_via)]
     pub executor: SqlxPgExecutor,
@@ -28,10 +22,7 @@ pub struct ExampleContext {
 impl ExampleContext {
     pub async fn new(db_url: &str) -> TernResult<Self> {
         let executor = SqlxPgExecutor::new(db_url).await?;
-        Ok(Self {
-            executor,
-            env: GetEnvVar,
-        })
+        Ok(Self { executor, env: GetEnvVar })
     }
 
     /// The executor's underlying connection is used to query the same database
