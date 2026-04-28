@@ -15,9 +15,12 @@ jobs:
       with:
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
         name: quasi-coherent
-    - name: Cache build
-      run: nix -Lv build
+    - name: Run flake checks
+      run: nix flake check --no-build
+    - name: Cache deps
+      run: nix -Lv build .#tern-deps
 'on':
   push:
     branches:
     - master
+    - dev/*

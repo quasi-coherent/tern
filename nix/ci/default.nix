@@ -9,13 +9,21 @@ let
       };
     }
   ];
+  cacheSetup = setup ++ [
+    {
+      uses = "cachix/cachix-action@v17";
+      "with" = {
+        name = "quasi-coherent";
+        authToken = "\${{ secrets.CACHIX_AUTH_TOKEN }}";
+      };
+    }
+  ];
 in
 {
   imports = [ inputs.actions-nix.flakeModules.default ];
 
   flake.actions-nix.workflows = {
-    ".github/workflows/main.yaml" = {
-      on.push.branches = [ "master" ];
+    ".github/workflows/pr.yaml" = {
       on.pull_request.branches = [
         "master"
         "dev/*"
@@ -28,7 +36,7 @@ in
         nix-flake-check = {
           steps = setup ++ [
             {
-              name = "Check flake";
+              name = "Run flake checks";
               run = "nix -Lv flake check";
             }
           ];
@@ -36,20 +44,26 @@ in
       };
     };
     ".github/workflows/cache.yaml" = {
-      on.push.branches = [ "master" ];
+      on.push.branches = [
+        "master"
+        "dev/*"
+      ];
       jobs = {
-        cachix-push = {
+        nix-flake-check-fast = {
           steps = setup ++ [
+
             {
-              uses = "cachix/cachix-action@v17";
-              "with" = {
-                name = "quasi-coherent";
-                authToken = "\${{ secrets.CACHIX_AUTH_TOKEN }}";
-              };
+              name = "Run flake checks";
+              run = "nix flake check --no-build";
             }
+          ];
+        };
+        cachix-cache-deps = {
+          steps = cacheSetup ++ [
             {
-              name = "Cache build";
-              run = "nix -Lv build";
+              name = "Cache build deps";
+              needs = "nix-flake-check-fast";
+              run = "nix build .#tern-deps";
             }
           ];
         };
