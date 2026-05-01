@@ -16,7 +16,7 @@ repository = "https://github.com/quasi-coherent/tern"
 keywords = ["embedded", "database", "migrations", "postgres", "mysql", "sqlite"]
 categories = ["database"]
 authors = ["Daniel Donohue <d.michael.donohue@gmail.com>"]
-rust-version = "1.81.0"
+rust-version = "1.85.1"
 
 [package]
 name = "tern"
