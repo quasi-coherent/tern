@@ -1581,7 +1581,6 @@ dependencies = [
  "anyhow",
  "clap",
  "console",
- "log",
  "regex",
  "tern-core",
 ]

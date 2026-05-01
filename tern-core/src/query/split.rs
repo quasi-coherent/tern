@@ -4,15 +4,14 @@
 // most of the weird edge cases.
 //
 // But `sql-splitter` is really for something else completely, it's for doing this
-// but for, like, 50GB of SQL...
+// but for, like, 50GB of SQL.
 //
 // The crate itself has no feature flags[1] to avoid the huge dependency
 // footprint that exists to solve whatever that problem is: a ton of crates in
-// scope for decompressing in all the ways something can be compressed, the rust
-// bindings to the C++ analytics DB duckdb, which therefore must build and link
-// and blah blah; it brings in all of arrow and seemingly every random add-on.
-//
-// All that totaled leads to this crate taking 45 minutes to build in CI.
+// scope for decompressing in all the ways something can be compressed, bindings
+// to duckdb, which builds and links with libduckdb-sys, it brings in arrow in
+// its entirety.  All that totaled leads to this crate taking 45 minutes to build
+// in CI versus 3 minutes if I copy/paste the below.
 //
 // [1]: https://github.com/HelgeSverre/sql-splitter/issues/40
 use std::io::{BufRead, BufReader, Read};
@@ -23,22 +22,6 @@ pub(super) enum SqlDialect {
     #[default]
     Postgres,
     Sqlite,
-}
-
-impl std::str::FromStr for SqlDialect {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "mysql" | "mariadb" => Ok(SqlDialect::MySql),
-            "postgres" | "postgresql" | "pg" => Ok(SqlDialect::Postgres),
-            "sqlite" | "sqlite3" => Ok(SqlDialect::Sqlite),
-            _ => Err(format!(
-                "Unknown dialect: {}. Valid options: mysql, postgres, sqlite, mssql",
-                s
-            )),
-        }
-    }
 }
 
 pub(super) struct Parser<R: Read> {
