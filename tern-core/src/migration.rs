@@ -16,7 +16,9 @@ use crate::error::{DatabaseError as _, TernResult};
 
 use chrono::{DateTime, Utc};
 use futures_core::{Future, future::BoxFuture};
-use std::{fmt::Write, time::Instant};
+use std::time::Instant;
+
+pub use crate::query::Query;
 
 /// The context in which a migration run occurs.
 pub trait MigrationContext
@@ -337,99 +339,6 @@ pub trait QueryBuilder {
     ) -> impl Future<Output = TernResult<Query>> + Send;
 }
 
-/// A SQL query.
-#[derive(Debug, Clone)]
-pub struct Query(pub(crate) String);
-
-impl Query {
-    pub fn new(sql: String) -> Self {
-        Self(sql)
-    }
-
-    fn sanitize(&self) -> String {
-        use regex::Regex;
-        let block_comment = Regex::new(r"\/\*(?s).*?(?-s)\*\/").unwrap();
-        let sql = self
-            .sql()
-            .trim()
-            .lines()
-            .filter(|line| {
-                let line = line.trim();
-                !line.starts_with("--") || line.is_empty()
-            })
-            .map(|line| {
-                // Remove trailing comments: "SELECT a -- like this"
-                let mut stripped = line.to_string();
-                let offset = stripped.find("--").unwrap_or(stripped.len());
-                stripped.replace_range(offset.., "");
-                stripped.trim_end().to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        let stripped = block_comment.replace_all(&sql, "");
-
-        if !stripped.ends_with(";") {
-            format!("{stripped};")
-        } else {
-            stripped.to_string()
-        }
-    }
-
-    pub fn sql(&self) -> &str {
-        &self.0
-    }
-
-    /// Add another query to the end of this one.
-    pub fn append(&mut self, other: Self) -> TernResult<()> {
-        let mut buf = String::new();
-        writeln!(buf, "{}", self.0)?;
-        writeln!(buf, "{}", other.0)?;
-        self.0 = buf;
-        Ok(())
-    }
-
-    /// Split a query comprised of multiple statements.
-    ///
-    /// For queries having `no_tx = true`, a migration comprised of multiple,
-    /// separate SQL statements needs to be broken up so that the statements can
-    /// run sequentially.  Otherwise, many backends will run the collection of
-    /// statements in a transaction automatically, which breaches the `no_tx`
-    /// contract.
-    ///
-    /// _Warning_: This is sensitive to the particular character sequence for
-    /// writing comments.  Only `--` and C-style `/* ... */` are treated
-    /// correctly because this is valid comment syntax in any of the supported
-    /// backends.  A line starting with `#`, for instance, will not be treated as
-    /// a comment, and so only in MySQL where that does denote a comment, the
-    /// function may not separate multiple statements correctly, possibly leading
-    /// to syntax errors during query execution.
-    pub fn split_statements(&self) -> TernResult<Vec<String>> {
-        let mut statements = Vec::new();
-        self.sanitize().lines().try_fold(String::new(), |mut buf, line| {
-            if line.trim().is_empty() {
-                return Ok(buf);
-            }
-            writeln!(buf, "{line}")?;
-            // If the line ends with `;` this is the end of the statement, so
-            // push the accumulated buffer to the vector and start a new one.
-            if line.ends_with(";") {
-                statements.push(buf);
-                Ok::<String, std::fmt::Error>(String::new())
-            } else {
-                Ok(buf)
-            }
-        })?;
-
-        Ok(statements)
-    }
-}
-
-impl std::fmt::Display for Query {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
 /// Name/version derived from the migration source filename.
 #[derive(Debug, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct MigrationId {
@@ -496,81 +405,5 @@ impl AppliedMigration {
             duration_ms,
             applied_at,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Query;
-
-    const SQL_IN1: &str = "
--- This is a comment.
-SELECT
-  *
-FROM
-  the_schema.the_table
-WHERE
-  everything = 'is_good'
-";
-    const SQL_OUT1: &str = "SELECT
-  *
-FROM
-  the_schema.the_table
-WHERE
-  everything = 'is_good';
-";
-    const SQL_IN2: &str = "
--- tern:noTransaction
-SELECT count(e.*),
-  e.x,
-  e.y -- This is the column called `y`
-FROM /* A comment block can even be like this */ the_table
-  as e
-JOIN another USING (id)
-/*
-This is a multi
-line
-comment
-*/
-WHERE false;
-
-SELECT a
-from x
--- Asdfsdfsdfsdfsdsdf /* Unnecessary comment */
-where false
-
-;
-";
-    const SQL_OUT21: &str = "SELECT count(e.*),
-  e.x,
-  e.y
-FROM  the_table
-  as e
-JOIN another USING (id)
-WHERE false;
-";
-
-    const SQL_OUT22: &str = "SELECT a
-from x
-where false
-;
-";
-
-    #[test]
-    fn split_one() {
-        let q1 = Query::new(SQL_IN1.to_string());
-        let res1 = q1.split_statements();
-        assert!(res1.is_ok());
-        let split1 = res1.unwrap();
-        assert_eq!(split1, vec![SQL_OUT1.to_string()]);
-    }
-
-    #[test]
-    fn split_two() {
-        let q2 = Query::new(SQL_IN2.to_string());
-        let res2 = q2.split_statements();
-        assert!(res2.is_ok());
-        let split2 = res2.unwrap();
-        assert_eq!(split2, vec![SQL_OUT21.to_string(), SQL_OUT22.to_string()]);
     }
 }

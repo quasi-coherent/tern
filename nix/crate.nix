@@ -3,34 +3,37 @@ let
   perSystem =
     { crane, ... }:
     let
-      # Following crane docs uses cleanCargoSource, which for us filters out the
-      # directories that have migrations in them and we need those.  So we have
-      # to pass an unfiltered root directory to crane and use filesets to add
-      # additional things.
       root = ../.;
 
-      src = lib.fileset.toSource {
-        inherit root;
+      # The smallest fileset contains the Cargo.toml and the Cargo.lock file to
+      # build only the workspace deps.
+      cargoTomlAndLock = crane.fileset.cargoTomlAndLock root;
+      # The set of *.rs, Cargo.toml, Cargo.lock files.
+      src = crane.fileset.commonCargoSources root;
 
-        fileset = lib.fileset.unions [
-          # Captures all toml, rs, and Cargo.lock
-          (crane.fileset.commonCargoSources ../.)
-          ../examples/simple/migrations
-          ../examples/dynamic/migrations
-        ];
-      };
-
-      inherit (crane.crateNameFromCargoToml { inherit src; }) version;
+      inherit (crane.crateNameFromCargoToml { src = crane.cleanCargoSource ../.; }) pname version;
 
       args = {
-        inherit src version;
+        # Override if building with `-p`.
+        inherit pname version;
+        src = lib.fileset.toSource {
+          inherit root;
+          fileset = src;
+        };
         strictDeps = true;
         cargoBuildExtraArgs = "--all-features";
       };
 
-      # Creating a package of only the dependencies ensures that the derivation
-      # exists to make it able to be cached.
-      cargoArtifacts = crane.buildDepsOnly args;
+      # Build only dependencies so that they can be cached for everything else.
+      cargoArtifacts = crane.buildDepsOnly {
+        inherit (args) pname version cargoBuildExtraArgs;
+
+        src = lib.fileset.toSource {
+          inherit root;
+          fileset = cargoTomlAndLock;
+        };
+        strictDeps = true;
+      };
 
       mkTernPackage =
         pname:
@@ -40,30 +43,80 @@ let
             src
             version
             strictDeps
-            cargoBuildExtraArgs
             ;
-          cargoExtraArgs = "-p ${pname}";
+          cargoBuildExtraArgs = "--all-features -p ${pname}";
         };
 
+      # Individual crates as flake outputs.
+      tern-cli = mkTernPackage "tern-cli";
+      tern-core = mkTernPackage "tern-core";
+      tern-derive = mkTernPackage "tern-derive";
+
+      # The root package.
       tern = crane.buildPackage {
+        inherit cargoArtifacts;
         inherit (args)
           src
-          strictDeps
+          pname
           version
+          strictDeps
           ;
-        inherit cargoArtifacts;
-        pname = "tern";
       };
     in
     {
       packages = {
-        inherit tern;
+        inherit
+          tern
+          tern-cli
+          tern-core
+          tern-derive
+          ;
 
         default = tern;
-        tern-deps = cargoArtifacts;
-        tern-cli = mkTernPackage "tern-cli";
-        tern-core = mkTernPackage "tern-core";
-        tern-derive = mkTernPackage "tern-derive";
+      };
+
+      checks = {
+        # Build the crates as part of `nix flake check` for convenience.
+        inherit
+          tern
+          tern-cli
+          tern-core
+          tern-derive
+          ;
+
+        tern-clippy = crane.cargoClippy {
+          inherit (args)
+            src
+            strictDeps
+            pname
+            version
+            ;
+
+          inherit cargoArtifacts;
+          cargoClippyExtraArgs = "--all-features --all-targets -- -Dwarnings";
+        };
+
+        tern-test = crane.cargoTest {
+          inherit (args)
+            strictDeps
+            pname
+            version
+            ;
+          inherit cargoArtifacts;
+
+          cargoTestExtraArgs = "--all-features --all-targets";
+          # We need to add the migration directories for the examples since
+          # everywhere else they're filtered out and we need them to compile
+          # tests (which includes `examples`).
+          src = lib.fileset.toSource {
+            inherit root;
+            fileset = lib.fileset.unions [
+              src
+              ../examples/dynamic/migrations
+              ../examples/simple/migrations
+            ];
+          };
+        };
       };
     };
 in

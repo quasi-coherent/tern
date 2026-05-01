@@ -28,8 +28,6 @@ let
   ];
 in
 {
-  imports = [ inputs.actions-nix.flakeModules.default ];
-
   flake.actions-nix.workflows = {
     ".github/workflows/pr.yaml" = {
       on.pull_request.branches = [
@@ -42,7 +40,8 @@ in
       };
       jobs = {
         nix-flake-check = {
-          steps = defaultSteps ++ [
+          # steps = defaultSteps ++ [
+          steps = cacheOutput ++ [
             {
               name = "Run flake checks";
               run = "nix -Lv flake check";
@@ -57,20 +56,11 @@ in
         "dev/*"
       ];
       jobs = {
-        nix-flake-check-fast = {
-          steps = defaultSteps ++ [
-            {
-              name = "Run flake checks";
-              run = "nix flake check --no-build";
-            }
-          ];
-        };
         cachix-cache-deps = {
-          needs = [ "nix-flake-check-fast" ];
           steps = cacheOutput ++ [
             {
               name = "Cache build deps";
-              run = "nix build .#tern-deps";
+              run = "nix build";
             }
           ];
         };

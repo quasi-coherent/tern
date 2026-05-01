@@ -9,7 +9,7 @@ default-members = ["tern-core", "tern-cli", "tern-derive"]
 exclude = []
 
 [workspace.package]
-version = "3.1.4"
+version = "3.1.5"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 repository = "https://github.com/quasi-coherent/tern"
@@ -34,24 +34,25 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 cli = ["tern-cli"]
+
 sqlx_postgres = ["tern-core/sqlx_postgres"]
 sqlx_mysql = ["tern-core/sqlx_mysql"]
 sqlx_sqlite = ["tern-core/sqlx_sqlite"]
+
+[workspace.dependencies]
+tern = { version = "=3.1.5", path = "." }
+tern-core = { version = "=3.1.5", path = "tern-core" }
+tern-cli = { version = "=3.1.5", path = "tern-cli" }
+tern-derive = { version = "=3.1.5", path = "tern-derive" }
+
+log = "0.4.29"
+regex = "1.12.3"
+sqlx = { version = "0.8.6", default-features = false }
 
 [dependencies]
 tern-core = { workspace = true }
 tern-cli = { workspace = true, optional = true }
 tern-derive = { workspace = true }
-
-[workspace.dependencies]
-tern = { version = "=3.1.4", path = "." }
-tern-core = { version = "=3.1.4", path = "tern-core" }
-tern-cli = { version = "=3.1.4", path = "tern-cli" }
-tern-derive = { version = "=3.1.4", path = "tern-derive" }
-
-log = "0.4.29"
-regex = "1.12.3"
-sqlx = { version = "0.8.6", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0"

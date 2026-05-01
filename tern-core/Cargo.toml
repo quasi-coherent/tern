@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 default = []
 
 sqlx = ["dep:sqlx", "sqlx/chrono", "sqlx/derive"]
-sqlx_postgres =  ["sqlx/postgres"]
+sqlx_postgres = ["sqlx/postgres"]
 sqlx_mysql = ["sqlx/mysql"]
 sqlx_sqlite = ["sqlx/sqlite"]
 
