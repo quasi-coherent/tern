@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 3.1.5 - 2026-04-27
+
+### Fixed
+* [[#38]]: Fixed issue with SQL migration sources that use `tern:noTransaction` where splitting
+  the query into individual statements would produce invalid output in certain cases; closes [[#33]].
+
+
 ## 3.1.0 - 2025-05-21
 
 ### Added
@@ -15,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * [[#26]]: Deprecated `Runner::apply_all` in favor of `run_apply_all` to accept `dryrun` argument.  Deprecated
-          `Runner::soft_apply` and CLI subcommand in favor of `run_soft_apply` to not accept a `start_version` input.
+  `Runner::soft_apply` and CLI subcommand in favor of `run_soft_apply` to not accept a `start_version` input.
   * Logging: All usage of `log::info!` changed to `log::trace!`. CLI returns the report for the user to render
     if they want.
 
@@ -28,13 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * [[#24]]: Add validation when parsing migration versions during proc macro expansion and during
-           execution for `apply-all` and `dryrun`.  Reject duplicate versions and missing versions.
+  execution for `apply-all` and `dryrun`.  Reject duplicate versions and missing versions.
 
 ### Changed
 * [[#24]]: The `Migration` interface is changed to return the built migration query for the `dryrun`
-           command so that it can be displayed in the report.  Similarly, a report "content" field
-           now contains the query that was applied rather than the file content in a report coming
-           from an `apply-all` operation.
+  command so that it can be displayed in the report.  Similarly, a report "content" field
+  now contains the query that was applied rather than the file content in a report coming
+  from an `apply-all` operation.
 
 [#24]: https://github.com/quasi-coherent/tern/pull/24
 [#26]: https://github.com/quasi-coherent/tern/pull/26
+[#33]: https://github.com/quasi-coherent/tern/issues/33
+[#38]: https://github.com/quasi-coherent/tern/pull/38
