@@ -3,7 +3,8 @@
   imports = [
     inputs.treefmt-nix.flakeModule
 
-    ./ci
+    ./actions.nix
+    ./checks.nix
     ./crate.nix
     ./lib.nix
     ./shells.nix
