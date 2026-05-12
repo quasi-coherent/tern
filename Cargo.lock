@@ -1616,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "tern-executor"
-version = "0.1.0"
+version = "4.0.0"
 dependencies = [
  "chrono",
  "futures-core",

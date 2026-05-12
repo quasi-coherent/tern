@@ -10,6 +10,42 @@ use tern_core::migration::Migration;
 
 use crate::migration::{DownMigration, UpMigration};
 
+/// Methods for working with a collection of migrations.
+pub trait MigrationIteratorExt: Iterator {
+    /// Filter the iterator to migrations in the given range.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `from` is greater than `to`.
+    fn range<Ctx: MigrationContext>(
+        self,
+        from: Option<i64>,
+        to: Option<i64>,
+    ) -> Range<Self>
+    where
+        Self: Iterator<Item = UpMigration<Ctx>> + Sized,
+    {
+        if let Some(f) = from
+            && let Some(t) = to
+            && f > t
+        {
+            panic!("`from` is greater than `to`");
+        }
+        Range::new(self, from, to)
+    }
+
+    /// Given a target version, return an iterator over the down migrations that
+    /// need to run to revert to it.
+    fn revert<Ctx: MigrationContext>(self, target: i64) -> Revert<Self>
+    where
+        Self: Iterator<Item = DownMigration<Ctx>> + Sized,
+    {
+        Revert::new(self, target)
+    }
+}
+
+impl<I: Iterator> MigrationIteratorExt for I {}
+
 /// `UpMigrationSet` is a set of migrations that represent creating new versions
 /// of the database.
 #[derive(Clone)]
@@ -171,5 +207,76 @@ impl<'a, Ctx> Iterator for DownIterRef<'a, Ctx> {
         let it = self.inner.get(self.idx)?;
         self.idx -= 1;
         Some(it)
+    }
+}
+
+/// Iterator of a migration set over versions greater than the latest.
+pub struct Range<I> {
+    it: I,
+    from: i64,
+    to: i64,
+}
+
+impl<I> Range<I> {
+    fn new(it: I, from: Option<i64>, to: Option<i64>) -> Self {
+        Self { it, from: from.unwrap_or(i64::MIN), to: to.unwrap_or(i64::MAX) }
+    }
+
+    // Recursive function returning when the version is in the given range.
+    fn run<Ctx>(&mut self) -> Option<UpMigration<Ctx>>
+    where
+        Ctx: MigrationContext,
+        I: Iterator<Item = UpMigration<Ctx>>,
+    {
+        let m = self.it.next()?;
+        let v = m.migration_id().version();
+
+        if self.from <= v && v <= self.to {
+            return Some(m);
+        }
+
+        self.run()
+    }
+}
+
+impl<Ctx, I> Iterator for Range<I>
+where
+    Ctx: MigrationContext,
+    I: Iterator<Item = UpMigration<Ctx>>,
+{
+    type Item = UpMigration<Ctx>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.run()
+    }
+}
+
+/// Iterator of a migration set to apply to revert to a previous version.
+pub struct Revert<I> {
+    it: I,
+    target: i64,
+}
+
+impl<I> Revert<I> {
+    fn new(it: I, target: i64) -> Self {
+        Self { it, target }
+    }
+}
+
+impl<Ctx, I> Iterator for Revert<I>
+where
+    Ctx: MigrationContext,
+    I: Iterator<Item = DownMigration<Ctx>>,
+{
+    type Item = DownMigration<Ctx>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(m) = self.it.next()
+            && m.migration_id().version() > self.target
+        {
+            Some(m)
+        } else {
+            None
+        }
     }
 }

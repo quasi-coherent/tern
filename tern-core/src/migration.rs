@@ -5,11 +5,13 @@ use std::fmt::{self, Display, Formatter};
 use std::ops::Deref;
 
 use crate::context::MigrationContext;
+use crate::executor::Executor;
 use crate::error::TernResult;
+use crate::query::Query;
 
 /// An individual migration.
 ///
-/// A `Migration` needs a [`MigrationContext`] to define how it applies.
+/// A `Migration`
 pub trait Migration: Send + Sync {
     /// The context needed to create and apply this migration.
     type Ctx: MigrationContext;
@@ -17,11 +19,37 @@ pub trait Migration: Send + Sync {
     /// Return the [`MigrationId`] of this migration.
     fn migration_id(&self) -> MigrationId;
 
+    /// Produce the query for this migration with the associated context.
+    fn query<'a>(
+        &'a self,
+        ctx: &'a mut Self::Ctx,
+    ) -> BoxFuture<'a, TernResult<Query>>;
+
     /// Apply this migration with the associated context.
+    ///
+    /// By default this simply resolves the query and uses the [`apply`] method
+    /// of the executor associated to `ctx`.
     fn apply<'a>(
         &'a self,
         ctx: &'a mut Self::Ctx,
-    ) -> BoxFuture<'a, TernResult<Applied>>;
+    ) -> BoxFuture<'a, TernResult<Applied>> {
+        Box::pin(async move {
+            let start = Utc::now();
+            let id = self.migration_id();
+
+            log::debug!(id:%; "resolving migration query");
+            let query = self.query(ctx).await?;
+
+            log::debug!(id:%, query:%; "applying with query");
+            ctx.executor_mut().apply(&query).await?;
+
+            log::debug!(id:%; "applied migration");
+            let content = query.to_string();
+            let applied = Applied::new(&id, content, start);
+
+            Ok(applied)
+        })
+    }
 }
 
 impl<M, D> Migration for D
@@ -35,11 +63,11 @@ where
         self.deref().migration_id()
     }
 
-    fn apply<'a>(
+    fn query<'a>(
         &'a self,
         ctx: &'a mut Self::Ctx,
-    ) -> BoxFuture<'a, TernResult<Applied>> {
-        self.deref().apply(ctx)
+    ) -> BoxFuture<'a, TernResult<Query>> {
+        self.deref().query(ctx)
     }
 }
 

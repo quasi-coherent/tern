@@ -45,22 +45,22 @@ chrono = { workspace = true }
 display_json = "0.2.1"
 futures-core = { workspace = true }
 log = { workspace = true, features = ["kv"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0"
 
 [workspace.dependencies]
 tern = { version = "=4.0.0", path = "." }
 tern-core = { version = "=4.0.0", path = "tern-core" }
 tern-cli = { version = "=4.0.0", path = "tern-cli" }
 tern-derive = { version = "=4.0.0", path = "tern-derive" }
-tern-executor = { version = "=0.1.0", path = "tern-executor" }
+tern-executor = { version = "=4.0.0", path = "tern-executor" }
 
 chrono = { version = "0.4.44", features = ["serde"] }
-futures-core = "0.3.31"
+futures-core = "0.3.32"
 log = "0.4.29"
 regex = "1.12.3"
-serde_json = "1.0"
-thiserror = "2.0.18"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
 
 [workspace.dependencies.sqlx]
 version = "0.8.6"

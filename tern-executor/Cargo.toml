@@ -1,7 +1,7 @@
 [package]
 name = "tern-executor"
 description = "Integrations for external database client crates."
-version = "0.1.0"
+version.workspace = true
 license.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -15,7 +15,6 @@ path = "src/lib.rs"
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-
 sqlx = ["dep:sqlx", "tern-core/sqlx_derive"]
 sqlx_mysql = ["sqlx", "sqlx/mysql"]
 sqlx_postgres = ["sqlx", "sqlx/postgres"]

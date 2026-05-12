@@ -16,7 +16,7 @@ More detailed information about this crate and its usage can be found in the [cr
   and its query at runtime, vastly simplifying some types of real-world use case.
 - Define a migration set as an up/down pair or not. Control whether any or all of a migration should take
   place in a database transaction.
-- Control where migration history is recorded, which makes it possible to have any number of independent
+- Control where migration history is persisted, which makes it possible to have any number of independent
   migration sets exist in the same database, well-suited for schema-level service isolation.
 - Easily write comprehensive integration tests of your migration set.
 - Add a CLI by simply enabling a feature.
@@ -27,7 +27,7 @@ See this [simple][eg] example of a `tern` app.
 
 Additional quality-of-life things are given to nix users:
 - This is a flake with package outputs for each crate and build dependencies cached in cachix. Append the
-  substituter `https://quasi-coherent.cachix.org` to take advantage of the cache.
+  substituter `https://quasi-coherent.cachix.org` to use this cache.
 - `flakeModules` provide options for building and testing a `tern` project.
 - Other module options exist for creating one or more [`nixos-lima`][lima] VMs, which could be used for
   setting up more elaborate integration test environments, or even for setting up _all_ environments!

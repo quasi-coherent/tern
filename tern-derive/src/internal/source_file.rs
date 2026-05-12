@@ -122,9 +122,8 @@ impl SourceFile {
         }
     }
 
-    /// For .rs, implement `Migration` for the user's type by offloading to
-    /// `Resolved`, then defining `struct __ResolveVn` with `migration()` like
-    /// `TernMigrate` expects.
+    /// For .rs, implement `Migration` for the user's type by offloading to the
+    /// `ResolveQuery` they wrote for it.
     pub fn quot_impl_migration_rs(&self, ident: &syn::Ident) -> TokenStream {
         let this = &self.this;
         let mig = self.quot_dyn_migration();
@@ -135,32 +134,13 @@ impl SourceFile {
 
             impl #this {
                 pub(super) fn migration() -> #mig<<#ident as ::tern::migration::Migration>::Ctx> {
-                    let inner = ::tern::migration::Resolved::<#ident>::new(#mid);
-                    #mig::new(inner)
-                }
-            }
-
-            impl ::tern::migration::Migration for #ident {
-                type Ctx = <#ident as ::tern::migration::ResolveQuery>::Ctx;
-
-                fn migration_id(&self) -> ::tern::MigrationId {
-                    #mid
-                }
-
-                fn apply<'a>(
-                    &'a self,
-                    ctx: &'a mut Self::Ctx,
-                ) -> ::tern::private::BoxFuture<'a, ::tern::TernResult<::tern::migration::Applied>> {
-                    let resolver = ::tern::migration::Resolved::<#ident>::new(#mid);
-                    ::std::boxed::Box::pin(async move { resolver.apply(ctx).await })
+                    #mig::from_resolve_query::<#ident>(#mid)
                 }
             }
         }
     }
 
-    /// For .sql it's like it is for .rs except the type exporting the migration
-    /// with `migration()` and the one implementing `ResolveQuery` are the same.
-    /// Also unlike .rs, we do `ResolveQuery` ourselves.
+    /// For .sql we implement `Migration` directly.
     pub fn quot_impl_migration_sql(
         &self,
         ident: &syn::Ident,
@@ -175,20 +155,7 @@ impl SourceFile {
 
             impl #this {
                 pub(super) fn migration() -> #mig<#ident> {
-                    let inner = ::tern::migration::Resolved::<#this>::new(#mid);
-                    #mig::new(inner)
-                }
-            }
-
-            impl ::tern::migration::ResolveQuery for #this {
-                type Ctx = #ident;
-
-                async fn init(_: &mut Self::Ctx) -> ::tern::TernResult<Self> {
-                    Ok(#this)
-                }
-
-                async fn resolve(&self, _: &mut Self::Ctx) -> ::tern::TernResult<::tern::Query> {
-                    ::tern::Query::from_sql(#content)
+                    #mig::new(#this)
                 }
             }
 
@@ -199,12 +166,11 @@ impl SourceFile {
                     #mid
                 }
 
-                fn apply<'a>(
+                fn query<'a>(
                     &'a self,
                     ctx: &'a mut Self::Ctx,
-                ) -> ::tern::private::BoxFuture<'a, ::tern::TernResult<::tern::migration::Applied>> {
-                    let resolver = ::tern::migration::Resolved::<#this>::new(#mid);
-                    ::std::boxed::Box::pin(async move { resolver.apply(ctx).await })
+                ) -> ::tern::migration::types::BoxFuture<'a, ::tern::TernResult<::tern::Query>> {
+                    ::std::boxed::Box::pin(async move { ::tern::Query::from_sql(#content) })
                 }
             }
         }

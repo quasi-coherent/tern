@@ -45,6 +45,7 @@ impl<Db: Database> SqlxExecutor<Db> {
         for<'c> &'c mut <Db as Database>::Connection:
             sqlx::Executor<'c, Database = Db>,
     {
+        log::trace!("running {statement}");
         conn.execute(sqlx::raw_sql(statement))
             .await
             .map_err(SqlxError::from)?;
@@ -57,7 +58,9 @@ impl<Db: Database> SqlxExecutor<Db> {
         for<'c> &'c mut <Db as Database>::Connection:
             sqlx::Executor<'c, Database = Db>,
     {
+        let num = statements.len();
         for (idx, st) in statements.iter().enumerate() {
+            log::trace!("running statement {} of {}: {st}", idx + 1, num);
             self.inner()
                 .execute(sqlx::raw_sql(st))
                 .await
@@ -96,6 +99,7 @@ where
 
     async fn check_history(&mut self, history: HistoryTable) -> TernResult<()> {
         let sql = Db::check_history(history);
+        log::trace!("running {sql}");
         let exists: bool = sqlx::query_scalar(&sql)
             .fetch_one(self.inner())
             .await
@@ -112,6 +116,7 @@ where
         history: HistoryTable,
     ) -> TernResult<()> {
         let sql = Db::create_history_if_not_exists_query(history);
+        log::trace!("running {sql}");
         self.inner()
             .execute(sqlx::raw_sql(&sql))
             .await
@@ -121,6 +126,7 @@ where
 
     async fn drop_history(&mut self, history: HistoryTable) -> TernResult<()> {
         let sql = Db::drop_history_query(history);
+        log::trace!("running {sql}");
         self.inner()
             .execute(sqlx::raw_sql(&sql))
             .await
@@ -133,6 +139,7 @@ where
         history: HistoryTable,
     ) -> TernResult<Vec<Applied>> {
         let sql = Db::get_all_applied_query(history);
+        log::trace!("running {sql}");
         let applied = sqlx::query_as::<Db, Applied>(&sql)
             .fetch_all(self.inner())
             .await
@@ -146,6 +153,7 @@ where
         applied: &Applied,
     ) -> TernResult<()> {
         let sql = Db::insert_applied_query(history, applied);
+        log::trace!("running {sql}");
         sqlx::query::<Db>(&sql)
             .bind(applied.version())
             .bind(applied.description())
@@ -164,6 +172,7 @@ where
         version: i64,
     ) -> TernResult<()> {
         let sql = Db::delete_applied_query(history, version);
+        log::trace!("running {sql}");
         sqlx::query::<Db>(&sql)
             .bind(version)
             .execute(self.inner())
@@ -178,6 +187,7 @@ where
         applied: &Applied,
     ) -> TernResult<()> {
         let sql = Db::upsert_applied_query(history, applied);
+        log::trace!("running {sql}");
         sqlx::query::<Db>(&sql)
             .bind(applied.version())
             .bind(applied.description())
