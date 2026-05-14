@@ -133,7 +133,7 @@ impl SourceFile {
             pub(super) struct #this;
 
             impl #this {
-                pub(super) fn migration() -> #mig<<#ident as ::tern::migration::Migration>::Ctx> {
+                pub(super) fn migration() -> #mig<<#ident as ::tern::migration::ResolveQuery>::Ctx> {
                     #mig::from_resolve_query::<#ident>(#mid)
                 }
             }

@@ -30,7 +30,7 @@ pub trait TernMigrateOp<T: TernMigrate>: Display {
 fn check_range(from: Option<i64>, to: Option<i64>) -> TernResult<()> {
     let f = from.unwrap_or(i64::MIN);
     let t = to.unwrap_or(i64::MAX);
-    if !(f < t) {
+    if f >= t {
         return Err(TernError::Invalid(format!(
             "`from` not less than `to`: {from:?}, {to:?}"
         )));

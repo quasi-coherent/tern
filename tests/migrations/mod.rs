@@ -1,5 +1,5 @@
 use tern::TernMigrate;
-use tern::sqlx::SqlxPgExecutor;
+use tern::executor::sqlx::SqlxPgExecutor;
 
 #[derive(TernMigrate)]
 #[tern(

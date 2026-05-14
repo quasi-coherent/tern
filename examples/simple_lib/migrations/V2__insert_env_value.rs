@@ -8,7 +8,7 @@
 //! to provide a context, an init method, and a query.
 use std::fmt::Write as _;
 use std::str::FromStr as _;
-use tern::sqlx::SqlxError;
+use tern::executor::sqlx::SqlxError;
 use tern::{Migration, Query, ResolveQuery, TernResult};
 
 use super::SimpleMigrate;

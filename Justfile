@@ -1,7 +1,7 @@
 system := `nix-instantiate --raw --strict --eval -E builtins.currentSystem`
 
-check:
-    nix flake check --keep-failed |& nom
+check *args:
+    nix flake check {{args}}
 
 ci:
     nix run .#render-workflows

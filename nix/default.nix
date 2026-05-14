@@ -27,17 +27,15 @@
       };
 
       treefmt = {
-        projectRootFile = "flake.nix";
+        projectRootFile = ".envrc";
         programs = {
+          nixfmt = {
+            enable = true;
+            excludes = [ ".direnv" ];
+          };
           rustfmt.enable = true;
-          nixfmt.enable = true;
+          taplo.enable = true;
           typos.enable = true;
-        };
-        settings.formatter.rustfmt = {
-          options = [
-            "--config-path"
-            "rustfmt.toml"
-          ];
         };
       };
     };

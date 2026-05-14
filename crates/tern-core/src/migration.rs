@@ -5,8 +5,8 @@ use std::fmt::{self, Display, Formatter};
 use std::ops::Deref;
 
 use crate::context::MigrationContext;
-use crate::executor::Executor;
 use crate::error::TernResult;
+use crate::executor::Executor;
 use crate::query::Query;
 
 /// An individual migration.

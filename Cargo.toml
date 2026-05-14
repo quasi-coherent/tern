@@ -1,7 +1,5 @@
 [workspace]
-members = [".", "tern-core", "tern-cli", "tern-derive", "tern-executor"]
-default-members = ["."]
-exclude = []
+members = [".", "crates/*"]
 
 [workspace.package]
 version = "4.0.0"
@@ -12,6 +10,9 @@ authors = ["Daniel Donohue <d.michael.donohue@gmail.com>"]
 keywords = ["database", "migrations", "postgres", "mysql", "sqlite"]
 categories = ["database"]
 
+[workspace.metadata.crane]
+name = "tern"
+
 [package]
 name = "tern"
 readme = "README.md"
@@ -21,6 +22,10 @@ license.workspace = true
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
+
+[lib]
+name = "tern"
+path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -36,36 +41,39 @@ sqlx_postgres = ["tern-executor/sqlx_postgres"]
 sqlx_sqlite = ["tern-executor/sqlx_sqlite"]
 
 [dependencies]
-tern-core = { workspace = true }
 tern-cli = { workspace = true, optional = true }
+tern-core = { workspace = true }
 tern-derive = { workspace = true }
 tern-executor = { workspace = true }
 
 chrono = { workspace = true }
-display_json = "0.2.1"
+display_json = { workspace = true }
 futures-core = { workspace = true }
 log = { workspace = true, features = ["kv"] }
 serde = { workspace = true }
-serde_json = "1.0"
+serde_json = { workspace = true }
 
 [workspace.dependencies]
-tern = { version = "=4.0.0", path = "." }
-tern-core = { version = "=4.0.0", path = "tern-core" }
-tern-cli = { version = "=4.0.0", path = "tern-cli" }
-tern-derive = { version = "=4.0.0", path = "tern-derive" }
-tern-executor = { version = "=4.0.0", path = "tern-executor" }
-
 chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.1", features = ["derive", "env"] }
+console = "0.16.3"
+display_json = "0.2.1"
 futures-core = "0.3.32"
 log = "0.4.29"
 regex = "1.12.3"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 thiserror = "2.0"
 
+tern-cli = { version = "=4.0.0", path = "crates/tern-cli" }
+tern-core = { version = "=4.0.0", path = "crates/tern-core" }
+tern-derive = { version = "=4.0.0", path = "crates/tern-derive" }
+tern-executor = { version = "=4.0.0", path = "crates/tern-executor" }
+
 [workspace.dependencies.sqlx]
-version = "0.8.6"
 default-features = false
 features = ["chrono", "derive"]
+version = "0.8.6"
 
 [dev-dependencies]
 env_logger = "0.11.10"

@@ -1,42 +1,24 @@
-{ ... }:
-let
+{
   perSystem =
     {
       cargoArtifacts,
-      craneNightly,
-      manifest,
-      mkTernPackage,
-      ternSrc,
+      crane,
+      src,
+      workspace,
       ...
     }:
     let
-      tern = mkTernPackage "tern";
-      tern-cli = mkTernPackage "tern-cli";
-      tern-core = mkTernPackage "tern-core";
-      tern-derive = mkTernPackage "tern-derive";
-      tern-executor = mkTernPackage "tern-executor";
+      tern = crane.buildPackage {
+        inherit (workspace) pname version;
+        inherit cargoArtifacts src;
+        cargoBuildExtraArgs = "--all-features";
+        strictDeps = true;
+      };
     in
     {
       packages = {
-        inherit
-          tern
-          tern-cli
-          tern-core
-          tern-derive
-          tern-executor
-          ;
-
+        inherit tern;
         default = tern;
-
-        tern-docs = craneNightly.cargoDoc {
-          inherit (manifest) pname version;
-          inherit cargoArtifacts;
-          src = ternSrc;
-          cargoExtraArgs = "-Zunstable-options --cfg=docsrs";
-        };
       };
     };
-in
-{
-  inherit perSystem;
 }

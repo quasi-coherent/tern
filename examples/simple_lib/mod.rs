@@ -4,7 +4,7 @@
 //! into a migration at runtime.
 use tern::TernMigrate;
 use tern::error::{ErrorKind, MigrationError, TernResult};
-use tern::sqlx::{SqlxError, SqlxPgExecutor, sqlx_lib};
+use tern::executor::sqlx::{SqlxError, SqlxPgExecutor, sqlx_lib};
 
 /// The custom `TernMigrate` context.
 ///

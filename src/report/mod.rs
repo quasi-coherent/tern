@@ -12,6 +12,7 @@ use tern_core::query::Query;
 pub type Report<T> = Result<T, Incomplete>;
 
 /// The incomplete results of a migrate operation that exited due to error.
+#[derive(Debug)]
 pub struct Incomplete {
     partial: Vec<MigrateOk>,
     err: TernError,
@@ -55,7 +56,7 @@ impl<T> TryReport<T> for TernResult<T> {
             Err(e) => {
                 let incomplete = Incomplete::new(partial.to_vec(), e);
                 Err(incomplete)
-            }
+            },
         }
     }
 }
@@ -89,10 +90,6 @@ impl MigrateOk {
             end_time: Utc::now(),
             duration: Duration::default(),
         }
-    }
-
-    pub(crate) fn version(&self) -> i64 {
-        self.version
     }
 
     pub(crate) fn from_migration<M>(migration: M) -> Self

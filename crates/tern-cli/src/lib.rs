@@ -2,6 +2,9 @@
 //!
 //! A CLI for `tern` migration apps.
 use clap::Parser;
+use tern_core::context::MigrationContext;
+
+pub trait TernOptions<Ctx: MigrationContext> {}
 
 /// The `tern` CLI application.
 pub struct TernCli {
@@ -18,6 +21,12 @@ impl TernCli {
     /// Return a reference to the options provided on the command line.
     pub fn get_opts(&self) -> &TernOpts {
         &self.opts
+    }
+}
+
+impl Default for TernCli {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -128,7 +137,7 @@ pub enum MigrateCommand {
         /// Revert versions down to and including this one
         #[arg(short, long)]
         to: i64,
-    }
+    },
 }
 
 /// Operations on the migration source
@@ -148,5 +157,5 @@ pub enum SourceCommand {
         /// Resolve migration queries in the result
         #[arg(long)]
         resolve_queries: bool,
-    }
+    },
 }

@@ -11,10 +11,7 @@ pub struct Init;
 impl<T: TernMigrate> TernMigrateOp<T> for Init {
     type Output = ();
 
-    async fn exec(
-        &self,
-        migrate: &mut T,
-    ) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
         if migrate.check_history_exists().await.is_ok() {
             log::warn!("History table already exists!");
             return Ok(());
@@ -37,10 +34,7 @@ pub struct Drop;
 impl<T: TernMigrate> TernMigrateOp<T> for Drop {
     type Output = ();
 
-    async fn exec(
-        &self,
-        migrate: &mut T,
-    ) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
         migrate.check_history_exists().await.inspect_err(|_| {
             log::error!("Drop failed: history table not found");
         })?;

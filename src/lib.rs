@@ -13,7 +13,7 @@ pub mod migrate;
 pub use migrate::{Tern, TernMigrate};
 
 pub mod migration;
-pub use migration::{Migration, MigrationId};
+pub use migration::{Migration, MigrationId, ResolveQuery};
 
 pub mod operation;
 

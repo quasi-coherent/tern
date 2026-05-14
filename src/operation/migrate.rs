@@ -195,7 +195,7 @@ impl<T: Invertible> TernMigrateOp<T> for Revert {
                 } else {
                     let applied = m.apply(migrate).await?;
                     m.post_apply(migrate, &applied).await?;
-                    MigrateOk::applied(applied)
+                    MigrateOk::reverted(applied)
                 };
                 oks.push(ok);
                 Ok(())
