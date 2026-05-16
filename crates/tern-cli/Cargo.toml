@@ -1,0 +1,19 @@
+[package]
+name = "tern-cli"
+description = "A CLI for `tern` migration tooling."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "tern_cli"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { workspace = true }
+console = { workspace = true }
+futures-core = { workspace = true }
+regex = { workspace = true }
+tern-core = { workspace = true }

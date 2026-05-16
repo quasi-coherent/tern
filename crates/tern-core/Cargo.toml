@@ -1,0 +1,26 @@
+[package]
+name = "tern-core"
+description = "Core interfaces and types for `tern` migration tooling."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "tern_core"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+sqlx_derive = ["dep:sqlx"]
+
+[dependencies]
+chrono = { workspace = true }
+futures-core = { workspace = true }
+log = { workspace = true }
+regex = { workspace = true }
+sqlx = { workspace = true, optional = true }
+thiserror = { workspace = true }

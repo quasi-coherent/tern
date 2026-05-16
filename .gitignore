@@ -1,7 +1,6 @@
 .DS_Store
 !.github/
 target/
-.dir-locals.el
+!.dir-locals.el
+!.envrc
 .direnv/
-.envrc
-Makefile.toml
