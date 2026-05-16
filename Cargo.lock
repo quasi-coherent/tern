@@ -1561,6 +1561,7 @@ name = "tern"
 version = "4.0.0"
 dependencies = [
  "chrono",
+ "clap",
  "display_json",
  "env_logger",
  "futures-core",
@@ -1581,6 +1582,7 @@ version = "4.0.0"
 dependencies = [
  "clap",
  "console",
+ "futures-core",
  "regex",
  "tern-core",
 ]

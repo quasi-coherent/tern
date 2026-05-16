@@ -2,7 +2,7 @@
 //!
 //! This simple example shows how a custom context can be used to inject logic
 //! into a migration at runtime.
-use tern::TernMigrate;
+use tern::{TernMigrate, TernOptions};
 use tern::error::{ErrorKind, MigrationError, TernResult};
 use tern::executor::sqlx::{SqlxError, SqlxPgExecutor, sqlx_lib};
 
@@ -54,6 +54,25 @@ impl SimpleMigrate {
                 .unwrap_or_default();
 
         Ok(maxx)
+    }
+}
+
+/// A pgsql connection string.
+pub struct DbUrl(String);
+
+impl DbUrl {
+    fn from_env() -> TernResult<Self> {
+        let conn_str = std::env::var("DATABASE_URL")
+            .map_err(ExampleError::Unset)
+            .map(|v| DbUrl(v.to_string()))?;
+        Ok(conn_str)
+    }
+}
+
+impl TernOptions<SimpleMigrate> for DbUrl {
+    async fn connect(&self) -> TernResult<SimpleMigrate> {
+        let db_url = DbUrl::from_env()?;
+        SimpleMigrate::new(&db_url.0).await
     }
 }
 

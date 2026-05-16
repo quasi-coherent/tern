@@ -3,13 +3,12 @@ use futures_core::Future;
 use std::fmt::{self, Display, Formatter};
 
 use crate::error::TernResult;
-use crate::migration::Applied;
-use crate::query::Query;
+use crate::migration::{Applied, Query};
 
 /// `Executor` is the database client interface for migration operations.
 pub trait Executor: Send + Sync + 'static {
-    /// Apply the given migration query.
-    fn apply(
+    /// Send the given query to the backend.
+    fn send(
         &mut self,
         query: &Query,
     ) -> impl Future<Output = TernResult<()>> + Send;

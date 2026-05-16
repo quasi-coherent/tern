@@ -1,82 +1,4 @@
-//! Module containing the [`Query`] for a migration.
-//!
-//! # Description
-//!
-//! `Query` is the value that holds the SQL to be applied during a migration
-//! run.  It is an enumeration of two variants of a migration query: a single
-//! [`Statement`], or the collection [`Statements`].
-//!
-//! A `Statement` is a query that may have more than one constituent SQL query,
-//! but it is prepared as one query and executed in a database transaction
-//! together with the query to save the applied migration in the history table.
-//! A query with `Statements`, in contrast, is ran by executing each element of
-//! the collection in order, exiting on the first error.
-//!
-//! A `Query` with `Statements` fits the use case of a migration with SQL that
-//! cannot, or otherwise should not, be ran in a database transaction.  For
-//! instance, it is an error to run certain index builds in a transaction in
-//! PostgreSQL.
-//!
-//! ## Source annotations
-//!
-//! To facilitate a SQL source file containing `Statements` for a migration,
-//! `tern` understands certain "magic" annotations, which are comments with
-//! keywords found in the SQL file.
-//!
-//! The main annotation is `tern:noTransaction`, which must appear on the first
-//! line in a comment.  This instructs `tern` to run the migration query outside
-//! of a database transaction, which means that the query must be split into a
-//! `Statements` collection.
-//!
-//! It is possible to indicate that some group of statements in the file should
-//! be ran in a transaction even if the entire query should not.  This is
-//! achieved with the annotations `tern:begin` and `tern:end`, which should
-//! surround a section that needs to be ran in a transaction.
-//!
-//! _Note_: Parsing SQL is hard...  If issues arise where a query is not being
-//! split into statements correctly, first try to see if the syntax can be
-//! adjusted to be easier to parse without changing the meaning.  For instance,
-//! complicated use of commenting can be the cause of such issues.  If that
-//! doesn't work, you can provide a hint to the dialect of SQL being used,
-//! which may resolve the problem.  This is done with the `noTransaction`
-//! annotation:
-//!
-//! ```sql
-//! -- tern:noTransaction,postgres declares the file to contain postgres syntax.
-//! -- Other values that are accepted are `mysql` and `sqlite`.  The default is
-//! -- "postgres".
-//! ```
-//!
-//! And if that doesn't work, please open an issue.
-//!
-//! # Example
-//!
-//! This is an example of a SQL source file that we want to run as a collection
-//! of `Statements`.
-//!
-//! ```sql
-//! -- tern:noTransaction
-//! -- The previous line means we will create groups of SQL statements.
-//!
-//! -- The following line opens a statement group:
-//! -- tern:begin
-//! CREATE TABLE blah.whatev_fast (LIKE blah.whatev INCLUDING CONSTRAINTS);
-//!
-//! -- This index build will happen in a transaction with the `CREATE TABLE...`
-//! -- statement.
-//! CREATE INDEX blah_whatev_fast_ca_bring_idx
-//!   ON blah.whatev_fast USING bring (created_at)
-//!   WITH (pages_per_range=64);
-//!
-//! -- Make it efficient:
-//! SELECT bring_summarize_new_values('blah_whatev_fast_ca_bring_idx');
-//!
-//! -- Now we're going to close the group with:
-//! -- tern:end
-//!
-//! -- Omitting the tags implies a group of one statement.
-//! SELECT 'Done!';
-//! ```
+//! Defining the query for a migration.
 use regex::Regex;
 use std::fmt::{self, Display, Formatter, Write as _};
 use std::io::{BufRead as _, BufReader, Error as IoError, Read};
@@ -86,9 +8,7 @@ use std::sync::OnceLock;
 use std::vec::IntoIter;
 
 use crate::error::{TernError, TernResult};
-
-mod split;
-use self::split::{Parser, SqlDialect};
+use crate::migration::split::{Parser, SqlDialect};
 
 // Default capacity of `std::io::BufReader`.
 const DEFAULT_BUF_SIZE: usize = 8 * 1024;

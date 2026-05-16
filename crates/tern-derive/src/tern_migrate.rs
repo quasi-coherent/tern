@@ -101,14 +101,14 @@ impl TernMigrateDeriveAttr {
 
     fn quot_history_table_fn(&self) -> TokenStream {
         let quot_tbl = self.table.as_ref()
-            .map(|t| quote::quote! { ::tern::HistoryTable::new(#t) })
-            .unwrap_or(quote::quote! { ::tern::HistoryTable::new(#DEFAULT_HISTORY_TABLE) });
+            .map(|t| quote::quote! { ::tern::executor::HistoryTable::new(#t) })
+            .unwrap_or(quote::quote! { ::tern::executor::HistoryTable::new(#DEFAULT_HISTORY_TABLE) });
         let quot_hist_new = match self.schema.as_ref() {
             Some(s) => quote::quote! { #quot_tbl.in_namespace(#s) },
             _ => quot_tbl,
         };
         quote::quote! {
-            fn history_table(&self) -> ::tern::HistoryTable {
+            fn history_table(&self) -> ::tern::executor::HistoryTable {
                 #quot_hist_new
             }
         }

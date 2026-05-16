@@ -1,11 +1,12 @@
 use display_json::{DebugAsJson, DisplayAsJsonPretty};
 use serde::Serialize;
+use tern_core::migrate::ops::{FetchAll, Resolve};
+use tern_core::migrate::{TernMigrate, TernMigrateOp};
 use tern_core::migration::Migration;
 
-use crate::migrate::TernMigrate;
-use crate::migration::types::*;
-use crate::operation::TernMigrateOp;
-use crate::report::{Completed, Incomplete, MigrateOk, Report};
+use crate::report::{
+    Completed, Incomplete, MigrateOk, OpResult, TryOpResult as _,
+};
 
 /// List the applied migrations.
 #[derive(Clone, DebugAsJson, Default, DisplayAsJsonPretty, Serialize)]
@@ -34,26 +35,29 @@ impl List {
 }
 
 impl<T: TernMigrate> TernMigrateOp<T> for List {
-    type Output = Completed;
+    type Success = Completed;
+    type Error = Incomplete;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> OpResult<Self::Success> {
         migrate.check_history_exists().await?;
-        super::check_range(self.from, self.to)?;
-        let output = migrate
-            .all_applied()
-            .await
-            .map_err(Incomplete::from)?
+
+        Ok(FetchAll::<T>::new()
+            .exec(migrate)
+            .await?
             .into_iter()
+            .filter(|m| {
+                self.from.is_none_or(|v| v <= m.version())
+                    && self.to.is_none_or(|v| v >= m.version())
+            })
             .map(MigrateOk::applied)
-            .collect::<Completed>();
-        Ok(output)
+            .collect::<Completed>())
     }
 }
 
 /// List the unapplied migrations.
 #[derive(Clone, DebugAsJson, Default, DisplayAsJsonPretty, Serialize)]
 pub struct Diff {
-    resolve_queries: bool,
+    render_queries: bool,
 }
 
 impl Diff {
@@ -62,24 +66,22 @@ impl Diff {
         Diff::default()
     }
 
-    /// For unapplied migrations that are dynamically defined, resolve the query
-    /// for the output.
-    ///
-    /// A placeholder will appear for the query content by default.
-    pub fn resolve_queries(self) -> Self {
-        Self { resolve_queries: true }
+    /// Return the full query contents in the result
+    pub fn render_queries(self) -> Self {
+        Self { render_queries: true }
     }
 }
 
 impl<T: TernMigrate> TernMigrateOp<T> for Diff {
-    type Output = Completed;
+    type Success = Completed;
+    type Error = Incomplete;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> OpResult<Self::Success> {
         migrate.check_history_exists().await?;
         let latest = migrate.last_applied_id().await?.map(|id| id.version());
-        let set = migrate.up_migrations().into_iter().range(latest, None);
+        let set = migrate.up_migrations().iter_between(latest, None);
 
-        if !self.resolve_queries {
+        if !self.render_queries {
             let output =
                 set.map(MigrateOk::from_migration).collect::<Completed>();
             return Ok(output);
@@ -88,15 +90,10 @@ impl<T: TernMigrate> TernMigrateOp<T> for Diff {
         let mut oks = Vec::new();
 
         for m in set {
-            async {
-                let q = m.query(migrate).await?;
-                let id = m.migration_id();
-                let ok = MigrateOk::unapplied(id, Some(q));
-                oks.push(ok);
-                Ok(())
-            }
-            .await
-            .report(&oks)?;
+            let id = m.migration_id();
+            let q = Resolve::new(&m).exec(migrate).await.incomplete(&oks)?;
+            let ok = MigrateOk::unapplied(id, Some(q));
+            oks.push(ok);
         }
 
         Ok(oks.into_iter().collect())

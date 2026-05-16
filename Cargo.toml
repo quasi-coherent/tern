@@ -34,7 +34,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 
-cli = ["tern-cli"]
+cli = ["tern-cli", "clap"]
 
 sqlx_mysql = ["tern-executor/sqlx_mysql"]
 sqlx_postgres = ["tern-executor/sqlx_postgres"]
@@ -47,11 +47,13 @@ tern-derive = { workspace = true }
 tern-executor = { workspace = true }
 
 chrono = { workspace = true }
+clap = { workspace = true, optional = true }
 display_json = { workspace = true }
 futures-core = { workspace = true }
 log = { workspace = true, features = ["kv"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 
 [workspace.dependencies]
 chrono = { version = "0.4.44", features = ["serde"] }
@@ -86,7 +88,7 @@ features = ["macros", "rt", "rt-multi-thread"]
 
 [[example]]
 name = "simple"
-required-features = ["sqlx_postgres"]
+required-features = ["cli", "sqlx_postgres"]
 
 [[test]]
 name = "derive"

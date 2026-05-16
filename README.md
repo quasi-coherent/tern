@@ -1,36 +1,35 @@
 # tern
 
-A bilingual Rust framework for managing migrations targeting a PostgreSQL, MySQL, or SQLite backend.
+> **A bilingual Rust framework for managing migrations targeting a PostgreSQL, MySQL, or SQLite backend.**
 
 [![Build status](https://github.com/quasi-coherent/tern/actions/workflows/main.yaml/badge.svg?branch=master)](https://github.com/quasi-coherent/tern/actions/workflows/main.yaml)
 [![Crates.io](https://img.shields.io/crates/v/tern)](https://github.com/quasi-coherent/tern)
 [![Documentation](https://docs.rs/tern/badge.svg)][tern-docs]
 
-More detailed information about this crate and its usage can be found in the [crate documentation][tern-docs].
-
 ## High level features
 
-- Integrate an existing application with its migrations: the complete migration source and operations
-  with it are embedded in a binary target.  Derive macros make this a minimum of effort and code change.
-- Migration logic can be written in SQL or Rust.  Rust migrations get a user-defined context to build it
-  and its query at runtime, vastly simplifying some types of real-world use case.
-- Define a migration set as an up/down pair or not. Control whether any or all of a migration should take
-  place in a database transaction.
-- Control where migration history is persisted, which makes it possible to have any number of independent
-  migration sets exist in the same database, well-suited for schema-level service isolation.
-- Easily write comprehensive integration tests of your migration set.
-- Add a CLI by simply enabling a feature.
+- Integrate an existing application with its migrations: the app and migration source can be embedded in
+  a binary target.  Derive macros make this a minimum of effort.
+- Migration logic can be written in SQL or Rust.  Rust migrations get a user-defined context to build the
+  query at runtime.  Certain use cases are vastly simplified.
+- Control precisely what runs in a database transaction and what cannot.  Control where the migration set
+  stores its history, which makes it possible for multiple, independent migration sets to share the same
+  database (e.g., for schema-level service isolation in a microservice setup).
+- Migration sets can be an up/down style or not.
+- A CLI by flipping a Cargo feature.
 
-See this [simple][eg] example of a `tern` app.
+See this [simple][eg] example of a `tern` app.  More detailed information about this crate and its usage
+can be found in the [crate documentation][tern-docs].
 
 ### As a nix flake
 
-Additional quality-of-life things are given to nix users:
-- This is a flake with package outputs for each crate and build dependencies cached in cachix. Append the
-  substituter `https://quasi-coherent.cachix.org` to use this cache.
-- `flakeModules` provide options for building and testing a `tern` project.
-- Other module options exist for creating one or more [`nixos-lima`][lima] VMs, which could be used for
-  setting up more elaborate integration test environments, or even for setting up _all_ environments!
+Additional quality-of-life things are for nix users:
+- Builds are cached for the public. Append the substituter `https://quasi-coherent.cachix.org` to use it.
+- `flakeModule` hiding the boilerplate of nix-ifying a `tern` app.
+- `nixosConfigurations` with a MySQL, PostgreSQL, or SQLite database and a package output for deploying
+  it to a VM for local integration testing, and pre-baking `tern` commands for deploying migrations to the
+  VM.
+- Flake template with a skeleton setup of the above.
 
 ## A note on a noun
 
@@ -64,6 +63,5 @@ This project is licensed under either of:
 
 [tern-docs]: https://docs.rs/tern/latest/tern/
 [eg]: ./examples/simple.rs
-[lima]: https://github.com/nixos-lima/nixos-lima
 [tern-wiki]: https://en.wikipedia.org/wiki/Elegant_tern
 [`3.1.x`]: https://github.com/quasi-coherent/tern/tree/v3.1.x

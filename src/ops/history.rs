@@ -1,17 +1,16 @@
 use std::fmt::{self, Display, Formatter};
-
-use crate::migrate::TernMigrate;
-use crate::operation::TernMigrateOp;
-use crate::report::Report;
+use tern_core::error::{TernError, TernResult};
+use tern_core::migrate::{TernMigrate, TernMigrateOp};
 
 /// Initialize the migration history table.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Init;
 
 impl<T: TernMigrate> TernMigrateOp<T> for Init {
-    type Output = ();
+    type Success = ();
+    type Error = TernError;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> TernResult<Self::Success> {
         if migrate.check_history_exists().await.is_ok() {
             log::warn!("History table already exists!");
             return Ok(());
@@ -32,9 +31,10 @@ impl Display for Init {
 pub struct Drop;
 
 impl<T: TernMigrate> TernMigrateOp<T> for Drop {
-    type Output = ();
+    type Success = ();
+    type Error = TernError;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> TernResult<Self::Success> {
         migrate.check_history_exists().await.inspect_err(|_| {
             log::error!("Drop failed: history table not found");
         })?;

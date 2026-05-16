@@ -14,5 +14,6 @@ path = "src/lib.rs"
 [dependencies]
 clap = { workspace = true }
 console = { workspace = true }
+futures-core = { workspace = true }
 regex = { workspace = true }
 tern-core = { workspace = true }

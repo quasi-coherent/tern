@@ -1,86 +1,29 @@
-//! Elements of a migration set.
+//! Types related to `Migration`s.
 use chrono::{DateTime, Utc};
-use futures_core::future::BoxFuture;
+use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
-use std::ops::Deref;
 
-use crate::context::MigrationContext;
-use crate::error::TernResult;
-use crate::executor::Executor;
-use crate::query::Query;
-
-/// An individual migration.
+/// A type that owns the ID of a migration within a set of migrations.
 ///
-/// A `Migration`
-pub trait Migration: Send + Sync {
-    /// The context needed to create and apply this migration.
-    type Ctx: MigrationContext;
-
-    /// Return the [`MigrationId`] of this migration.
-    fn migration_id(&self) -> MigrationId;
-
-    /// Produce the query for this migration with the associated context.
-    fn query<'a>(
-        &'a self,
-        ctx: &'a mut Self::Ctx,
-    ) -> BoxFuture<'a, TernResult<Query>>;
-
-    /// Apply this migration with the associated context.
-    ///
-    /// By default this simply resolves the query and uses the [`apply`] method
-    /// of the executor associated to `ctx`.
-    fn apply<'a>(
-        &'a self,
-        ctx: &'a mut Self::Ctx,
-    ) -> BoxFuture<'a, TernResult<Applied>> {
-        Box::pin(async move {
-            let start = Utc::now();
-            let id = self.migration_id();
-
-            log::debug!(id:%; "resolving migration query");
-            let query = self.query(ctx).await?;
-
-            log::debug!(id:%, query:%; "applying with query");
-            ctx.executor_mut().apply(&query).await?;
-
-            log::debug!(id:%; "applied migration");
-            let content = query.to_string();
-            let applied = Applied::new(&id, content, start);
-
-            Ok(applied)
-        })
-    }
-}
-
-impl<M, D> Migration for D
-where
-    D: Deref<Target = M> + Send + Sync,
-    for<'d> M: Migration + 'd,
-{
-    type Ctx = M::Ctx;
-
-    fn migration_id(&self) -> MigrationId {
-        self.deref().migration_id()
-    }
-
-    fn query<'a>(
-        &'a self,
-        ctx: &'a mut Self::Ctx,
-    ) -> BoxFuture<'a, TernResult<Query>> {
-        self.deref().query(ctx)
-    }
+/// This should not need to be used directly except maybe when not using macros.
+pub trait HasMigrationId {
+    /// Return a reference to the migration ID.
+    fn id_ref(&self) -> &MigrationId;
 }
 
 /// Identifier for a migration in a migration set.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct MigrationId {
     version: i64,
-    description: String,
+    description: Cow<'static, str>,
 }
 
 impl MigrationId {
     /// New `MigrationId` from values in the filename.
-    pub fn new<T: Into<String>>(version: i64, description: T) -> Self {
+    pub fn new<T: Into<Cow<'static, str>>>(
+        version: i64,
+        description: T,
+    ) -> Self {
         Self { version, description: description.into() }
     }
 

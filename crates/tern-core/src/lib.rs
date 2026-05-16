@@ -5,5 +5,5 @@
 pub mod context;
 pub mod error;
 pub mod executor;
+pub mod migrate;
 pub mod migration;
-pub mod query;

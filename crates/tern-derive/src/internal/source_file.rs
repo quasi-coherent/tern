@@ -122,25 +122,8 @@ impl SourceFile {
         }
     }
 
-    /// For .rs, implement `Migration` for the user's type by offloading to the
-    /// `ResolveQuery` they wrote for it.
-    pub fn quot_impl_migration_rs(&self, ident: &syn::Ident) -> TokenStream {
-        let this = &self.this;
-        let mig = self.quot_dyn_migration();
-        let mid = self.quot_migration_id();
-
-        quote::quote! {
-            pub(super) struct #this;
-
-            impl #this {
-                pub(super) fn migration() -> #mig<<#ident as ::tern::migration::ResolveQuery>::Ctx> {
-                    #mig::from_resolve_query::<#ident>(#mid)
-                }
-            }
-        }
-    }
-
-    /// For .sql we implement `Migration` directly.
+    /// For .sql we directly implement `ResolveQuery` and `HasMigrationId`, hence
+    /// `Migration`, for 0-sized type #this using the filename and contents.
     pub fn quot_impl_migration_sql(
         &self,
         ident: &syn::Ident,
@@ -151,6 +134,9 @@ impl SourceFile {
         let mid = self.quot_migration_id();
 
         quote::quote! {
+            static __MIGRATION_ID: ::std::sync::LazyLock<::tern::migration::MigrationId> =
+                ::std::sync::LazyLock::new(|| #mid);
+
             pub(super) struct #this;
 
             impl #this {
@@ -159,18 +145,78 @@ impl SourceFile {
                 }
             }
 
-            impl ::tern::migration::Migration for #this {
+            impl ::tern::ResolveQuery for #this {
                 type Ctx = #ident;
 
-                fn migration_id(&self) -> ::tern::MigrationId {
-                    #mid
+                async fn init(_: &mut Self::Ctx) -> ::tern::TernResult<Self> {
+                    Ok(#this)
+                }
+
+                async fn resolve(&self, _: &mut Self::Ctx) -> ::tern::TernResult<::tern::Query> {
+                    ::tern::Query::from_sql(#content)
+                }
+            }
+
+            impl ::tern::migration::types::HasMigrationId for #this {
+                fn id_ref(&self) -> &::tern::migration::MigrationId {
+                    &*__MIGRATION_ID
+                }
+            }
+        }
+    }
+
+    /// For .rs, implementing `Migration` is a little more challenging because
+    /// this is in a child module of the module containing the user's deriving
+    /// `TernMigrate` type.  So this token stream does not have the symbol for
+    /// it, and we must:
+    ///
+    /// 1. Use the migration ID from the filename to impl `HasMigrationId` for
+    ///    the user's type.  This implies it's a `Migration` too.  Now we can
+    ///    write `<#ident as Migration>::Ctx`, which is one requirement.
+    /// 2. The user's `ResolveQuery` means it can init from just the ctx.  We
+    ///    use this to define Migration::query for #this.
+    ///
+    /// This allows us to write the parameterless `#this::migration()` with
+    /// correct return type expression.
+    pub fn quot_impl_migration_rs(&self, ident: &syn::Ident) -> TokenStream {
+        let this = &self.this;
+        let mig = self.quot_dyn_migration();
+        let mid = self.quot_migration_id();
+
+        quote::quote! {
+            static __MIGRATION_ID: ::std::sync::LazyLock<::tern::migration::MigrationId> =
+                ::std::sync::LazyLock::new(|| #mid);
+
+            pub(super) struct #this;
+
+            impl #this {
+                pub(super) fn migration() -> #mig<<#ident as ::tern::Migration>::Ctx> {
+                    #mig::new(#this)
+                }
+            }
+
+            impl ::tern::migration::types::HasMigrationId for #ident {
+                fn id_ref(&self) -> &::tern::migration::MigrationId {
+                    &*__MIGRATION_ID
+                }
+            }
+
+            impl ::tern::Migration for #this {
+                type Ctx = <#ident as ::tern::Migration>::Ctx;
+
+                fn migration_id(&self) -> &::tern::migration::MigrationId {
+                    &*__MIGRATION_ID
                 }
 
                 fn query<'a>(
                     &'a self,
                     ctx: &'a mut Self::Ctx,
-                ) -> ::tern::migration::types::BoxFuture<'a, ::tern::TernResult<::tern::Query>> {
-                    ::std::boxed::Box::pin(async move { ::tern::Query::from_sql(#content) })
+                ) -> ::tern::private::BoxFuture<'a, ::tern::TernResult<::tern::Query>>
+                {
+                    ::std::boxed::Box::pin(async move {
+                        let mig = <#ident as ::tern::ResolveQuery>::init(ctx).await?;
+                        <#ident as ::tern::ResolveQuery>::resolve(&mig, ctx).await
+                    })
                 }
             }
         }

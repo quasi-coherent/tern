@@ -6,25 +6,24 @@
 //! # Overview
 #![cfg_attr(docsrs, feature(docs_cfg))]
 #![warn(missing_docs)]
+mod app;
+pub use app::Tern;
+
 pub mod executor;
-pub use executor::HistoryTable;
-
-pub mod migrate;
-pub use migrate::{Tern, TernMigrate};
-
-pub mod migration;
-pub use migration::{Migration, MigrationId, ResolveQuery};
-
-pub mod operation;
-
+pub mod ops;
 pub mod report;
 pub use report::Report;
 
 pub use tern_core::context::MigrationContext;
-#[doc(inline)]
 pub use tern_core::error::{self, TernError, TernResult};
-#[doc(inline)]
-pub use tern_core::query::{self, Query};
+pub use tern_core::migrate::{self, TernMigrate, TernMigrateOp, TernOptions};
+pub use tern_core::migration::{self, Migration, Query, ResolveQuery};
+
+// Re-export external symbol in the path for proc macros.
+#[doc(hidden)]
+pub mod private {
+    pub use futures_core::future::BoxFuture;
+}
 
 #[doc(hidden)]
 extern crate tern_derive;

@@ -1,5 +1,6 @@
 //! Context for applying migrations.
 use futures_core::future::BoxFuture;
+use std::ops::{Deref, DerefMut};
 
 use crate::error::TernResult;
 use crate::executor::{Executor, HistoryTable};
@@ -77,21 +78,6 @@ pub trait MigrationContext: Send + Sync {
         })
     }
 
-    /// Returns applied migrations satisfying the given predicate.
-    fn applied_where<'a, 'ctx: 'a, F>(
-        &'ctx mut self,
-        f: F,
-    ) -> BoxFuture<'a, TernResult<Vec<Applied>>>
-    where
-        F: FnMut(&Applied) -> bool + Send + 'a,
-    {
-        Box::pin(async move {
-            let applied = self.all_applied().await?;
-            let filtered = applied.into_iter().filter(f).collect();
-            Ok(filtered)
-        })
-    }
-
     /// Confirm that the migration history table exists in the target database.
     fn check_history_exists(&mut self) -> BoxFuture<'_, TernResult<()>> {
         Box::pin(async move {
@@ -116,3 +102,39 @@ pub trait MigrationContext: Send + Sync {
         })
     }
 }
+
+impl<Ctx, D> MigrationContext for D
+where
+    D: DerefMut<Target = Ctx> + Send + Sync,
+    for<'d> Ctx: MigrationContext + 'd,
+{
+    type Exec = Ctx::Exec;
+
+    fn executor_mut(&mut self) -> &mut Self::Exec {
+        self.deref_mut().executor_mut()
+    }
+
+    fn history_table(&self) -> HistoryTable {
+        self.deref().history_table()
+    }
+}
+
+/// Extension to `MigrationContext` to put non-object safe methods.
+pub trait MigrationContextExt: MigrationContext {
+    /// Returns applied migrations satisfying the given predicate.
+    fn applied_where<'a, 'ctx: 'a, F>(
+        &'ctx mut self,
+        f: F,
+    ) -> BoxFuture<'a, TernResult<Vec<Applied>>>
+    where
+        F: FnMut(&Applied) -> bool + Send + 'a,
+    {
+        Box::pin(async move {
+            let applied = self.all_applied().await?;
+            let filtered = applied.into_iter().filter(f).collect();
+            Ok(filtered)
+        })
+    }
+}
+
+impl<Ctx: MigrationContext> MigrationContextExt for Ctx {}

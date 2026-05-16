@@ -1,18 +1,30 @@
 //! Displaying results of an operation.
 //!
 use chrono::{DateTime, Utc};
+use display_json::DisplayAsJsonPretty;
+use serde::Serialize;
+use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
 use tern_core::error::{TernError, TernResult};
-use tern_core::migration::{Applied, Migration, MigrationId};
-use tern_core::query::Query;
+use tern_core::migration::{Applied, Migration, MigrationId, Query};
 
-/// A `Report` is the result of a failed operation whose error contains the
-/// successful outcomes up to the failure.
-pub type Report<T> = Result<T, Incomplete>;
+/// A `Report` of the result of an operation.
+#[derive(Debug)]
+pub enum Report {
+    /// The operation was successful and the value contains individual results.
+    Success(Completed),
+    /// The operation encountered an error and the value contains the error and
+    /// the partial successful results.
+    Error(Incomplete),
+}
+
+/// Alias for a result with error `Incomplete` containing partial operation
+/// outcomes.
+pub type OpResult<T> = Result<T, Incomplete>;
 
 /// The incomplete results of a migrate operation that exited due to error.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub struct Incomplete {
     partial: Vec<MigrateOk>,
     err: TernError,
@@ -22,6 +34,16 @@ impl Incomplete {
     /// New from components.
     pub(crate) fn new(partial: Vec<MigrateOk>, err: TernError) -> Self {
         Self { partial, err }
+    }
+}
+
+impl Display for Incomplete {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.partial.iter().try_for_each(|m| {
+            writeln!(f, "{m}")?;
+            Ok::<_, fmt::Error>(())
+        })?;
+        writeln!(f, "{}", self.err)
     }
 }
 
@@ -45,12 +67,12 @@ impl FromIterator<MigrateOk> for Completed {
     }
 }
 
-pub(crate) trait TryReport<T> {
-    fn report(self, partial: &[MigrateOk]) -> Report<T>;
+pub(crate) trait TryOpResult<T> {
+    fn incomplete(self, partial: &[MigrateOk]) -> OpResult<T>;
 }
 
-impl<T> TryReport<T> for TernResult<T> {
-    fn report(self, partial: &[MigrateOk]) -> Report<T> {
+impl<T> TryOpResult<T> for TernResult<T> {
+    fn incomplete(self, partial: &[MigrateOk]) -> OpResult<T> {
         match self {
             Ok(t) => Ok(t),
             Err(e) => {
@@ -62,7 +84,7 @@ impl<T> TryReport<T> for TernResult<T> {
 }
 
 /// An operation that succeeded.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, DisplayAsJsonPretty)]
 pub(crate) struct MigrateOk {
     version: i64,
     description: String,
@@ -75,7 +97,7 @@ pub(crate) struct MigrateOk {
 
 impl MigrateOk {
     pub(crate) fn new(
-        id: MigrationId,
+        id: &MigrationId,
         query: Option<Query>,
         outcome: Outcome,
     ) -> Self {
@@ -100,12 +122,22 @@ impl MigrateOk {
         Self::new(id, None, Outcome::Unapplied)
     }
 
-    pub(crate) fn unapplied(id: MigrationId, query: Option<Query>) -> Self {
+    pub(crate) fn unapplied(id: &MigrationId, query: Option<Query>) -> Self {
         Self::new(id, query, Outcome::Unapplied)
     }
 
-    pub(crate) fn dryrun(id: MigrationId, query: Option<Query>) -> Self {
-        Self::new(id, query, Outcome::Skipped)
+    pub(crate) fn dryrun(
+        id: &MigrationId,
+        query: Option<Query>,
+        start: DateTime<Utc>,
+    ) -> Self {
+        let this = Self::new(id, query, Outcome::Skipped);
+        let duration: Option<u64> =
+            (this.end_time - start).num_milliseconds().try_into().ok();
+        Self {
+            duration: duration.map(Duration::from_millis).unwrap_or_default(),
+            ..this
+        }
     }
 
     pub(crate) fn applied(value: Applied) -> Self {
@@ -151,7 +183,7 @@ impl MigrateOk {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub(crate) enum Outcome {
     Applied,
     SoftApplied,

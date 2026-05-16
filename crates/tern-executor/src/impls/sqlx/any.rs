@@ -3,8 +3,8 @@ use sqlx::pool::PoolOptions;
 use sqlx::{Acquire as _, Database, Executor as _};
 use tern_core::error::{TernError, TernResult};
 use tern_core::executor::{Executor, HistoryTable};
-use tern_core::migration::Applied;
-use tern_core::query::{Query, Statement};
+use tern_core::migration::query::Statement;
+use tern_core::migration::{Applied, Query};
 
 use crate::impls::sqlx::SqlxError;
 use crate::query::ExecQueryLib;
@@ -82,7 +82,7 @@ where
     DateTime<Utc>: sqlx::Type<Db> + for<'a> sqlx::Encode<'a, Db>,
     for<'r> (bool,): sqlx::FromRow<'r, <Db as Database>::Row>,
 {
-    async fn apply(&mut self, query: &Query) -> TernResult<()> {
+    async fn send(&mut self, query: &Query) -> TernResult<()> {
         match query {
             Query::Tx(statement) => {
                 let mut tx = self.0.begin().await.map_err(SqlxError::from)?;

@@ -1,161 +1,108 @@
 //! # tern-cli
 //!
 //! A CLI for `tern` migration apps.
-use clap::Parser;
-use tern_core::context::MigrationContext;
+use clap::{Args, Parser, Subcommand};
+use std::ops::{Deref, DerefMut};
+use tern_core::error::TernResult;
+use tern_core::migrate::{Invertible, TernMigrate, TernOptions};
 
-pub trait TernOptions<Ctx: MigrationContext> {}
+mod history;
+pub use history::History;
 
-/// The `tern` CLI application.
-pub struct TernCli {
-    opts: TernOpts,
+mod migrate;
+pub use migrate::Migrate;
+
+mod source;
+pub use source::Source;
+
+/// Arguments for `tern` CLI subcommands.
+pub mod args {
+    pub use super::history::{Drop, Init};
+    pub use super::migrate::{Apply, Revert, SoftApply};
+    pub use super::source::{Diff, Ls};
 }
 
-impl TernCli {
-    /// Parse CLI arguments.
-    pub fn new() -> Self {
-        let opts = TernOpts::parse();
-        Self { opts }
+/// Disabled
+#[derive(Clone, Copy, Debug, Default, Args)]
+pub struct Disabled;
+
+#[derive(Parser)]
+pub struct TernCommand<I: Args, C: Args> {
+    #[command(subcommand)]
+    commands: TernCommands<I>,
+    #[clap(flatten)]
+    options: C,
+}
+
+/// `tern`
+#[derive(Debug, Subcommand)]
+#[non_exhaustive]
+pub enum TernCommands<I: Args> {
+    /// `tern history`
+    History(History),
+    /// `tern source`
+    Source(Source),
+    /// `tern migrate`
+    Migrate(Migrate<I>),
+}
+
+/// Cli for a `tern` migration app.
+pub struct TernCli<T, I = Disabled>
+where
+    I: Args,
+{
+    migrate: T,
+    commands: TernCommands<I>,
+}
+
+impl<T: TernMigrate, I: Args> TernCli<T, I> {
+    /// Initialize completely from command-line arguments.
+    pub async fn from_options<C>() -> TernResult<TernCli<T, I>>
+    where
+        C: TernOptions<T> + Args,
+    {
+        let cli = TernCommand::<I, C>::parse();
+        let migrate = cli.options.connect().await?;
+        Ok(TernCli { migrate, commands: cli.commands })
     }
 
-    /// Return a reference to the options provided on the command line.
-    pub fn get_opts(&self) -> &TernOpts {
-        &self.opts
+    /// Return a reference to the CLI arguments.
+    pub fn commands(&self) -> &TernCommands<I> {
+        &self.commands
+    }
+
+    /// Consume this type and return the inner `T`.
+    pub fn into_inner(self) -> T {
+        self.migrate
     }
 }
 
-impl Default for TernCli {
-    fn default() -> Self {
-        Self::new()
+impl<T: TernMigrate> TernCli<T> {
+    /// Initialize with migrations `T`.
+    pub fn from_migrate(migrate: T) -> TernCli<T> {
+        let cli = TernCommand::<Disabled, Disabled>::parse();
+        TernCli { migrate, commands: cli.commands }
     }
 }
 
-/// Command line interface for tern migrations
-#[derive(Debug, Parser)]
-pub struct TernOpts {
-    /// tern
-    #[clap(subcommand)]
-    pub commands: TernCommands,
+impl<T: Invertible> TernCli<T, args::Revert> {
+    /// Initialize with reversible migrations `T`.
+    pub fn from_invertible(migrate: T) -> TernCli<T, args::Revert> {
+        let cli = TernCommand::<args::Revert, Disabled>::parse();
+        TernCli { migrate, commands: cli.commands }
+    }
 }
 
-/// Subcommands to `tern`
-#[derive(Debug, Parser)]
-pub enum TernCommands {
-    /// tern history
-    History(HistoryOpts),
-    /// tern migrate
-    Migrate(MigrateOpts),
-    /// tern source
-    Source(SourceOpts),
+impl<T, I: Args> Deref for TernCli<T, I> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.migrate
+    }
 }
 
-/// Interact with the migration history table
-#[derive(Debug, Parser)]
-pub struct HistoryOpts {
-    /// Arguments for history commands
-    #[clap(subcommand)]
-    pub command: HistoryCommand,
-}
-
-/// Migrate the database from one version to another
-#[derive(Debug, Parser)]
-pub struct MigrateOpts {
-    /// Migrate subcommand
-    #[clap(subcommand)]
-    pub command: MigrateCommand,
-}
-
-/// Local migration source files
-#[derive(Debug, Parser)]
-pub struct SourceOpts {
-    /// Arguments for source commands
-    #[clap(subcommand)]
-    pub command: SourceCommand,
-}
-
-/// Operations on the history table
-#[derive(Debug, Parser)]
-pub enum HistoryCommand {
-    /// Create the schema history table
-    Init,
-    /// Drop the schema history table
-    Drop,
-}
-
-/// Operations on the database
-#[derive(Debug, Parser)]
-pub enum MigrateCommand {
-    /// Run the apply operation for a specific range of unapplied migrations
-    Apply {
-        /// Return the report of migrations that would be applied
-        ///
-        /// This will resolve queries that are not statically defined.
-        /// To avoid this, use the [`Diff`] command instead.
-        ///
-        /// [`Diff`]: SourceArgs::Diff
-        #[arg(short, long)]
-        dryrun: bool,
-        /// Apply versions up to and including this one
-        #[arg(short, long)]
-        to: Option<i64>,
-    },
-    /// Run the apply operation for all unapplied migration
-    ApplyAll {
-        /// Return the report of migrations that would be applied
-        ///
-        /// This will resolve queries that are not statically defined.
-        /// To avoid this, use the [`Diff`] command instead.
-        ///
-        /// [`Diff`]: SourceArgs::Diff
-        #[arg(short, long)]
-        dryrun: bool,
-    },
-    /// Soft apply migrations
-    ///
-    /// This saves the specified migrations in the history table as if they had
-    /// been applied without actually being applied.
-    ///
-    /// This can be used to sync the history table and database if starting from
-    /// an existing state.
-    SoftApply {
-        /// Return the report of migrations that would be soft applied
-        #[arg(short, long)]
-        dryrun: bool,
-        /// Soft apply versions up to and including this one
-        #[arg(short, long)]
-        to: Option<i64>,
-    },
-    /// Revert existing migrations
-    ///
-    /// For migration source that contains up and down migration pairs, this runs
-    /// the down migrations to the specified version and points history to this
-    /// new latest version.
-    Revert {
-        /// Return the report of migrations that would be revered
-        #[arg(short, long)]
-        dryrun: bool,
-        /// Revert versions down to and including this one
-        #[arg(short, long)]
-        to: i64,
-    },
-}
-
-/// Operations on the migration source
-#[derive(Debug, Parser)]
-pub enum SourceCommand {
-    /// List applied migrations
-    Ls {
-        /// List migration versions starting from this one
-        #[arg(short, long)]
-        from: Option<i64>,
-        /// List migration versions ending with this one
-        #[arg(short, long)]
-        to: Option<i64>,
-    },
-    /// List unapplied migrations
-    Diff {
-        /// Resolve migration queries in the result
-        #[arg(long)]
-        resolve_queries: bool,
-    },
+impl<T, I: Args> DerefMut for TernCli<T, I> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.migrate
+    }
 }

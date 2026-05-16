@@ -2,12 +2,13 @@ use chrono::Utc;
 use display_json::{DebugAsJson, DisplayAsJsonPretty};
 use serde::Serialize;
 use tern_core::error::TernError;
+use tern_core::migrate::ops::{Down, Resolve, Up};
+use tern_core::migrate::{Invertible, TernMigrate, TernMigrateOp};
 use tern_core::migration::{Applied, Migration};
 
-use crate::migrate::{Invertible, TernMigrate};
-use crate::migration::types::*;
-use crate::operation::TernMigrateOp;
-use crate::report::{Completed, MigrateOk, Report};
+use crate::report::{
+    Completed, Incomplete, MigrateOk, OpResult, TryOpResult as _,
+};
 
 /// Apply migrations in the given range if valid.
 #[derive(Clone, DebugAsJson, Default, DisplayAsJsonPretty, Serialize)]
@@ -40,9 +41,10 @@ impl Apply {
 }
 
 impl<T: TernMigrate> TernMigrateOp<T> for Apply {
-    type Output = Completed;
+    type Success = Completed;
+    type Error = Incomplete;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> OpResult<Self::Success> {
         migrate.check_history_exists().await?;
         let latest = migrate.last_applied_id().await?.map(|v| v.version());
 
@@ -53,26 +55,28 @@ impl<T: TernMigrate> TernMigrateOp<T> for Apply {
                 "Target version {v} already applied"
             )))?;
         }
-        let set = migrate.up_migrations().into_iter().range(latest, self.to);
+
+        let set = migrate.up_migrations().iter_between(latest, self.to);
 
         let mut oks = Vec::new();
 
         for m in set {
             async {
+                let start = Utc::now();
+                let id = m.migration_id();
+
                 let ok = if self.dryrun {
-                    let id = m.migration_id();
-                    let query = m.query(migrate).await?;
-                    MigrateOk::dryrun(id, Some(query))
+                    let q = Resolve::new(&m).exec(migrate).await?;
+                    MigrateOk::dryrun(id, Some(q), start)
                 } else {
-                    let applied = m.apply(migrate).await?;
-                    m.post_apply(migrate, &applied).await?;
+                    let applied = Up::new(&m).exec(migrate).await?;
                     MigrateOk::applied(applied)
                 };
                 oks.push(ok);
                 Ok(())
             }
             .await
-            .report(&oks)?;
+            .incomplete(&oks)?;
         }
 
         Ok(oks.into_iter().collect())
@@ -113,9 +117,10 @@ impl SoftApply {
 }
 
 impl<T: TernMigrate> TernMigrateOp<T> for SoftApply {
-    type Output = Completed;
+    type Success = Completed;
+    type Error = Incomplete;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> OpResult<Self::Success> {
         migrate.check_history_exists().await?;
         let latest = migrate.last_applied_id().await?.map(|id| id.version());
 
@@ -126,7 +131,7 @@ impl<T: TernMigrate> TernMigrateOp<T> for SoftApply {
                 "Target version {t} already exists!"
             )))?;
         }
-        let set = migrate.up_migrations().into_iter().range(latest, self.to);
+        let set = migrate.up_migrations().iter_between(latest, self.to);
 
         let mut oks = Vec::new();
 
@@ -143,24 +148,29 @@ impl<T: TernMigrate> TernMigrateOp<T> for SoftApply {
                 Ok(())
             }
             .await
-            .report(&oks)?;
+            .incomplete(&oks)?;
         }
 
         Ok(oks.into_iter().collect())
     }
 }
 
-/// Revert migrations in the given range if valid.
-#[derive(Clone, DebugAsJson, DisplayAsJsonPretty, Serialize)]
+/// Revert migrations to the selected version.
+#[derive(Clone, Default, DebugAsJson, DisplayAsJsonPretty, Serialize)]
 pub struct Revert {
-    to: i64,
+    to: Option<i64>,
     dryrun: bool,
 }
 
 impl Revert {
     /// Returns the `Revert` operation with target version `to`.
-    pub fn new(to: i64) -> Self {
-        Self { to, dryrun: false }
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Revert the database to the specified version.
+    pub fn to(self, v: i64) -> Self {
+        Self { to: Some(v), ..self }
     }
 
     /// Return the report of the migrations that would be reverted.
@@ -170,38 +180,41 @@ impl Revert {
 }
 
 impl<T: Invertible> TernMigrateOp<T> for Revert {
-    type Output = Completed;
+    type Success = Completed;
+    type Error = Incomplete;
 
-    async fn exec(&self, migrate: &mut T) -> Report<Self::Output> {
+    async fn exec(&self, migrate: &mut T) -> OpResult<Self::Success> {
         migrate.check_history_exists().await?;
         let latest = migrate.last_applied_id().await?.map(|id| id.version());
-        let t = self.to;
 
-        if latest.is_some_and(|l| l > t) {
+        if let Some(t) = self.to
+            && latest.is_some_and(|l| l > t)
+        {
             return Err(TernError::Invalid(format!(
                 "Target version {t} does not exist!"
             )))?;
         }
-        let set = migrate.down_migrations().into_iter().revert(t);
+        let set = migrate.down_migrations().iter_between(latest, self.to);
 
         let mut oks = Vec::new();
 
         for m in set {
             async {
+                let start = Utc::now();
+                let id = m.migration_id();
+
                 let ok = if self.dryrun {
-                    let id = m.migration_id();
-                    let query = m.query(migrate).await?;
-                    MigrateOk::dryrun(id, Some(query))
+                    let q = Resolve::new(&m).exec(migrate).await?;
+                    MigrateOk::dryrun(id, Some(q), start)
                 } else {
-                    let applied = m.apply(migrate).await?;
-                    m.post_apply(migrate, &applied).await?;
+                    let applied = Down::new(&m).exec(migrate).await?;
                     MigrateOk::reverted(applied)
                 };
                 oks.push(ok);
                 Ok(())
             }
             .await
-            .report(&oks)?;
+            .incomplete(&oks)?;
         }
 
         Ok(oks.into_iter().collect())

@@ -1,4 +1,9 @@
-#![allow(unused)]
-pub mod simple_lib;
+use tern::Tern;
 
-fn main() {}
+pub mod simple_lib;
+use simple_lib::SimpleMigrate;
+
+#[tokio::main]
+async fn main() {
+    todo!()
+}
