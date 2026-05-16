@@ -2,9 +2,9 @@
 //!
 //! This simple example shows how a custom context can be used to inject logic
 //! into a migration at runtime.
-use tern::{TernMigrate, TernOptions};
 use tern::error::{ErrorKind, MigrationError, TernResult};
 use tern::executor::sqlx::{SqlxError, SqlxPgExecutor, sqlx_lib};
+use tern::{TernMigrate, TernOptions};
 
 /// The custom `TernMigrate` context.
 ///
