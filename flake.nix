@@ -22,9 +22,9 @@
   };
 
   nixConfig = {
-    extra-substituters = [ "https://quasi-coherent.cachix.org" ];
+    extra-substituters = [ "https://tern.cachix.org" ];
     extra-trusted-public-keys = [
-      "quasi-coherent.cachix.org-1:3+u75bSX52FuYz64LAqVEY9+/FPztofTDfz7p9UTBEA="
+      "tern.cachix.org-1:wkC6dqWR8tLGcrTI40AOPQ48BdZaYXP/aen9znVbAMc="
     ];
   };
 }
