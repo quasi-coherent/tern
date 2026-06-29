@@ -1,55 +1,63 @@
 # tern
 
-> A bilingual Rust framework for managing migrations targeting a MySQL, PostgreSQL, or SQLite backend.
+> Bilingual database migrations for MySQL, PostgreSQL, or SQLite.
 
 
 [![Build status](https://github.com/quasi-coherent/tern/actions/workflows/main.yaml/badge.svg?branch=master)](https://github.com/quasi-coherent/tern/actions/workflows/main.yaml)
 [![Crates.io](https://img.shields.io/crates/v/tern)](https://github.com/quasi-coherent/tern)
 [![Documentation](https://docs.rs/tern/badge.svg)][tern-doc]
 
-### High level features
+### Overview
 
-- Integrate an existing application with its migrations: the app and migration source can be embedded in
-  a binary target.  Derive macros make this a minimum of effort.
-- Migration logic can be written in SQL or Rust.  Rust migrations get a user-defined context to build the
-  query at runtime.
-- A migration may be many individual statements, and any subset of them may be chosen to run together in a
-  transaction or not.
-- The backend for tracking migration state may be given a custom location, which allows for multiple,
-  independent migration sets to exist in the same database.
+`tern` is a Rust framework for managing a set of database migrations.  At a high level it provides a
+few major features:
 
-For more, check out some [examples][eg] of `tern` applications.  The official Rust docs can be consulted
+- A simple macro interface creating a migration app that compiles with the migration source into a
+  single target.
+- An API for supplying a custom "context" to build and apply migrations, which may be written in
+  Rust in addition to SQL.
+- A public interface emphasizing flexibility and customization:
+  * A migration can run in a database transaction or not, or it can be a collection of many groups
+    of statements that each run in a transaction.
+  * Change the location for storing schema history, allowing multiple migration sets to co-exist in
+    one database.
+  * Synchronize, fast forward, rewind, or repair the schema history table without complicated ad-hoc
+    procedures.
+  * Extend or customize the set of operations a migration app exposes.
+
+For more, check out some [examples][eg] of `tern` applications.  The official Rust docs can be found
 [here][tern-doc].
 
 ### ⚠ Breaking changes ⚠
 
-The default branch is a major release candidate so it contains many breaking changes over the previous release.
-See the [`3.1.x`] branch for the current non-experimental release of `tern`.
+The default branch is a major release candidate so it contains many breaking changes over the previous
+release. See the [`3.1.x`] branch for the current, non-RC version of `tern`.
 
 ### A note on a noun
 
 This project is called `tern`.  Apparently, so are many other database migration projects.
 
-I can only assume this means that the migratory [species][tern-wiki] has a larger portion of their budget
-going to SEO services than other families of birds that are known for having extremely long migratory patterns.
+I can only assume this means that the migratory [species][tern-wiki] has a larger portion of their
+budget going to SEO services than other families of birds that are known for having extremely long
+migratory patterns.
 
-It's hard to find any that can measure up to the tern though.  Recent studies establish that the Arctic tern,
-for instance, covers a round-trip length of 70,000km each year, which makes me wonder if they do anything but
-migrate.
+It's hard to find any that can measure up to the tern though.  Recent studies establish that the
+Arctic tern, for instance, covers a round-trip length of 70,000km each year, which makes me wonder if
+they do anything but migrate.
 
 ## Usage
 
-To install `tern`, you select a supported third-party database crate to bring in as a dependency that matches
-your target database.  Currently, there is support for the [`sqlx`][sqlx-pool] connection pool types for MySQL,
-PostgreSQL, and SQLite.  Add this to your Cargo.toml, for example:
+To install `tern`, you select a supported third-party database crate to bring in as a dependency
+that matches your target database.  Currently, there is support for the [`sqlx`][sqlx-pool]
+connection pool types for MySQL, PostgreSQL, and SQLite.  Add this to your Cargo.toml, for example:
 
 ```toml
 tern = { version = "4.0.0-rc1", features = ["sqlx_postgres"] }
 ```
 
-A `tern` application consists of two things: a migration set, or the queries representing the version history,
-and a `TernApp` for exposing methods to operate on the database with them.  Both are provided by an appropriate
-use of the derive macro `TernApp`.
+A `tern` application consists of two things: a migration set, or the queries representing the
+version history, and a `TernApp` for exposing methods to operate on the database with them.  Both
+are provided by the derive macro `TernApp`.
 
 A "kitchen sink" example of what that looks like is:
 
@@ -63,13 +71,13 @@ use tern::executor::sqlx::SqlxPgExecutor;
 /// migrations should be stored.  Both are optional.  Once the table exists,
 /// this obviously should not change.
 ///
-/// The `source` attribute is where the migrations live.
+/// The `source` attribute is the path to the migration source directory.
 #[derive(Clone, Debug, TernApp)]
 #[tern(source = "src/migrations", schema = "tern_history", table = "blah")]
 pub struct BlahMigrations {
     /// We need a database client that implements a particular "utility" query
-    /// interface.  The Cargo feature brought in `SqlxPgExecutor`, which does
-    /// this.  The attribute `executor_via` points out the field to grab it from.
+    /// interface.  The cargo feature brought in `SqlxPgExecutor`, which does
+    /// this.  `executor_via` points out the field to grab it from.
     ///
     /// This is technically optional, but without it `BlahMigrations` itself
     /// would need to provide the lower level database methods.
@@ -81,8 +89,8 @@ pub struct BlahMigrations {
 }
 ```
 
-This should be in the immediate parent of the migration source directory, so in this case
-either `src/migrations/mod.rs` or `src/migrations.rs` depending on flavor.
+This should be in the immediate parent of the migration source directory, so in this case either
+`src/migrations/mod.rs` or `src/migrations.rs` depending on taste.
 
 `BlahMigrations` can now be turned into a runnable application:
 
@@ -92,20 +100,21 @@ use tern::executor::ConnStr;
 use tern::executor::sqlx::SqlxPgExecutor;
 use tern::ops::{ApplyArgs, ListArgs};
 
-// Constructing the interior "utility" client, or "executor" as it were.
-// `ConnStr` can build simple versions of "executors" but more precise
-// construction is possible too.
+// Constructing the interior "utility" client, or "executor" for our app.
+//
+// `ConnStr` can build simple versions of "executors" but they can be built from
+// more customized options too.
 let conn = ConnStr::from_env("DATABASE_URL")?;
 let exec: SqlxPgExecutor = conn.connect().await?;
 
-// Our custom `TernApp`:
+// Our `TernApp`:
 let special_value = Some("lebron_james".into());
 let blah = BlahMigrations { exec, special_value };
 
-// `Tern` wraps the app and exposes "main" methods.
+// `Tern` wraps the app and exposes a set of the "main" methods.
 let mut app = Tern::new(blah);
 
-// `List` is an operation to show migrations that exist.
+// `List` is an operation to show migrations in the migration set.
 //
 // `diff` returns the diff between local and remote sources, which is just the
 // unapplied migrations.
@@ -163,17 +172,16 @@ attribute of `TernApp` references, a path relative to `CARGO_MANIFEST_DIR`.
 
 These files are expected to follow these conventions/rules:
 
-* A migration file can be in Rust (more [below](#rust-migrations)) or in SQL.  The eventual
-  output should be a prepared statement to send to the database.
+* A migration file can be in Rust (more [below](#rust-migrations)) or in SQL.  The eventual output
+  should be a prepared statement to send to the database.
 * A migration query can have one or more constituent parts (expressions ending with `;`).
-* Migration source filenames must match the regex pattern `^(V|U|D)(\d+)__(\w+)\.(sql|rs)$`.
-  For example,
+* Migration source filenames must match the regex pattern `^(V|U|D)(\d+)__(\w+)\.(sql|rs)$`.  For
+  example,
   - `V1__create_a_table.sql`
   - `V5__create_a_different_table.rs`
   - `U91__create_a_table_again.sql`
-* A migration set can come in pairs, prefixed with `U` (for "up") and `D` (for "down"), when
-  one up migration is ostensibly reverted by its corresponding down migration.
-  For example
+* A migration set can come in pairs, prefixed with `U` (for "up") and `D` (for "down"), when one up
+  migration is ostensibly reverted by its corresponding down migration. For example,
   - `U8__create_table_index.rs` and `D8__create_table_index.sql`
   - `U22__do_a_thing.rs` and `D22__do_a_thing.sql`
 * One up/down pair can be any combination of .rs and .sql, and a migration set must have all up/down
@@ -184,26 +192,25 @@ database are enabled.  More on down migrations [below](#reverting-migrations).
 
 #### SQL annotations
 
-We proclaimed at the top that you can control what, if anything, runs in a database transaction
-and what does not.  This becomes important in some real scenarios.  Some migration tooling will run
-things in a transaction and it is not possible to override this, but for instance it is an error to
-try to create an index with the `CONCURRENTLY` keyword in PostgreSQL.
+We proclaimed at the top that you can control what, if anything, runs in a database transaction and
+what does not.  This becomes important in some common scenarios.  For example, it is an error to try
+to create an index with the `CONCURRENTLY` keyword in PostgreSQL in a transaction.
 
 To facilitate, `tern` understands certain magic keywords that influence how a migration's query is
 interpreted:
 
 * `tern:noTransaction` should be found somewhere in a comment on the first line.  When found, `tern`
   will build and run this query without opening a database transaction first.
-* `tern:begin_tx` in a comment can decorate one individual statement.  This instructs `tern` to group
-  this and all subsequent statements until closed into one prepared statement sent to the database.
-  This has the effect of running the group of queries in a transaction.
-* `tern:end_tx` closes a previous `tern:begin_tx` _after the statement it decorates_.  So in summary,
-  a `tern:begin_tx` and `tern:end_tx` includes everything from the `begin` through and including the
-  query under an `end` annotation.
+* `tern:begin_tx` in a comment can decorate one individual statement.  This instructs `tern` to
+  group this and all subsequent statements until closed into one prepared statement sent to the
+  database.  This has the effect of running the group of queries in a transaction.
+* `tern:end_tx` closes a previous `tern:begin_tx` _after the statement it decorates_.  So in
+  summary, a `tern:begin_tx` and `tern:end_tx` includes everything from `begin_tx`, through and
+  including the query under the closing `end_tx`.
 * A SQL dialect hint can be given by `tern:postgres`.  Supported values are `mysql`, `postgres`, and
-  `sqlite`.  This must be on the first line in a comment, together with `noTransaction` if both should
-  be included: `tern:noTransaction,postgres`.  This will rarely be useful in the case that uncommon,
-  dialect-specific syntax causes confuses the interpretation of statement terminating characters.
+  `sqlite`.  This must be on the first line in a comment, together with `noTransaction` if both
+  should be included: `tern:noTransaction,postgres`.  This will rarely be useful in the case that
+  uncommon, dialect-specific syntax confuses the interpretation of statement terminating characters.
 
 ```sql
 -- tern:noTransaction
@@ -217,7 +224,7 @@ CREATE TABLE IF NOT EXISTS whatever (
 );
 
 -- tern:begin_tx
--- Everything below this is included in one statement.
+-- Starting now, this is one database transaction.
 CREATE TABLE IF NOT EXISTS whatever_whatever (
   wewe_id serial PRIMARY KEY,
   we_created_at timestamptz(3) REFERENCES whatever(we_id),
@@ -225,7 +232,7 @@ CREATE TABLE IF NOT EXISTS whatever_whatever (
   user_name text,
 );
 
--- This means the group ends after this index creation:
+-- After this, the database transaction ends.
 -- tern:end_tx
 CREATE INDEX IF NOT EXISTS wewe_user_idx
   ON whatever_whatever (we_created_at);
@@ -308,24 +315,27 @@ the query that will be applied.
 
 #### Reverting migrations
 
-Previous versions of `tern` did not support reverting migrations.  Down migrations have never been
-used for a useful purpose in the author's experience, and the opinion is that instead they are mostly
-hurtful for providing a false confidence during deployment and often making a bad situation worse.
+Previous versions of `tern` did not support reverting migrations.  In the author's personal
+experience, having a down migration available never came in handy, and the opinion is that, on the
+contrary, down migrations have a negative effect by giving a false sense of confidence during
+deployment, often making a bad situation worse.
 
-Think about when a down migration would run: it would run when something unexpected happened during
-deployment of the up version and the database was left in a state that is bad enough to revert.  So,
-given this, how much faith should we have in a "down" migration that was written with only the
-understanding of how "up" could _successfully_ be applied?  We can't possibly have accounted for what
-led to the unexpected state for the mere fact that it was not expected.
+Consider: when would a down migration run?  It would run when something unexpected happened during
+deployment of the up version and the database was left in a state that is bad enough to want to
+revert the migration.  In this case, how much faith should we have in a "down" migration?  It was
+written only with the idea of "up" could _successfully_ have been applied.  In writing the down
+migration, we couldn't possibly have accounted for what led to the unexpected state for the mere
+fact that it was not expected.
 
-Having gotten that down, `tern` now supports up/down migrations.  An important note is that a down
+With that out of the way, `tern` supports up/down migrations.  An important note is that a down
 migration will _always_ be applied outside of a database transaction, and each statement in the file
 is ran on its own, ignoring any annotations that may be found.
 
-The intended purpose for this is to best support carefully reverting each up migration component,
-one-by-one, to ensure that the database is not left in an unknown state in case a failure occurs
-midway.  If an error is encountered, the statement's (0-based) index within the migration file can be
-given as an argument to the revert operation on a retry in order to resume from the point of failure.
+The reasoning is that the task is best done by carefully reverting each up migration component
+one-by-one to ensure that the database is not left in an unknown state in case a failure occurs
+midway.  If an error is encountered and it is not safe to resume from the top of the given version,
+the statement's (0-based) index within the migration file can be given as an argument to the revert
+operation.  This resumes the operation from the last point of failure.
 
 ### Notes
 
@@ -341,10 +351,10 @@ Right now there's no `tracing` support offered, but please open an issue if this
 
 #### Compilation targets
 
-Because migrations are part of the source code, and .sql files are not generally expected to fit that
-definition, it is possible that changes to a .sql file will not trigger a recompilation of the target.
-In most cases it _should_ by some macro business, but the author currently doesn't know why this fails
-to be true on occasion.
+Because migrations are part of the source code, and .sql files are not generally expected to fit
+that definition, it is possible that changes to a .sql file will not trigger a recompilation of the
+target.  In most cases it _should_ by some macro business, but the author currently doesn't know why
+this fails to be true on occasion.
 
 A `cargo clean -p the-package` fixes it, but to resolve once and for all, a `build.rs` can be placed
 in the root of the crate with these contents:
@@ -358,9 +368,9 @@ fn main() {
 ## Contributing
 
 Contributions in the form of PR, feature request, or bug report are all very much appreciated.
-Currently, a decent place to contribute in the feature department could be to add integrations
-with more third-party database crates.  Or it could not--this author only knows `sqlx` and can't
-say much about the popularity of other options.
+Currently, a decent place to contribute in the feature department could be to add integrations with
+more third-party database crates.  Or it could not--this author only knows `sqlx` and can't say much
+about the popularity of other options.
 
 Enhancements, defects, or general issues of behavior (flaws, if you will) belong in an issue with
 that label.
