@@ -102,7 +102,7 @@ use tern::ops::{ApplyArgs, ListArgs};
 
 // Constructing the interior "utility" client, or "executor" for our app.
 //
-// `ConnStr` can build simple versions of "executors" but they can be built from
+// `ConnStr` can build simple versions of executors but they can be built from
 // more customized options too.
 let conn = ConnStr::from_env("DATABASE_URL")?;
 let exec: SqlxPgExecutor = conn.connect().await?;
@@ -150,7 +150,7 @@ use tern::executor::ConnOpt;
 // `DATABASE_URL` should be provided the connection string, and this will work.
 //
 // `Tern::run_with` uses the output of our closure to run the command subject to
-/// the options that were parsed via CLI:
+// the options that were parsed via CLI:
 let result =
   Tern::run_with(|opts: ConnOpt| async move {
       let exec: SqlxPgExecutor = opts.connect().await?;
@@ -192,9 +192,9 @@ database are enabled.  More on down migrations [below](#reverting-migrations).
 
 #### SQL annotations
 
-We proclaimed at the top that you can control what, if anything, runs in a database transaction and
-what does not.  This becomes important in some common scenarios.  For example, it is an error to try
-to create an index with the `CONCURRENTLY` keyword in PostgreSQL in a transaction.
+We proclaimed at the top that you have control over what runs in a database transaction and what does
+not.  This becomes important in some common scenarios.  For example, it is an error to try to create
+an index with the `CONCURRENTLY` keyword in PostgreSQL in a transaction.
 
 To facilitate, `tern` understands certain magic keywords that influence how a migration's query is
 interpreted:
@@ -203,14 +203,15 @@ interpreted:
   will build and run this query without opening a database transaction first.
 * `tern:begin_tx` in a comment can decorate one individual statement.  This instructs `tern` to
   group this and all subsequent statements until closed into one prepared statement sent to the
-  database.  This has the effect of running the group of queries in a transaction.
+  database, executed in an "all-or-nothing" way.
 * `tern:end_tx` closes a previous `tern:begin_tx` _after the statement it decorates_.  So in
   summary, a `tern:begin_tx` and `tern:end_tx` includes everything from `begin_tx`, through and
   including the query under the closing `end_tx`.
-* A SQL dialect hint can be given by `tern:postgres`.  Supported values are `mysql`, `postgres`, and
-  `sqlite`.  This must be on the first line in a comment, together with `noTransaction` if both
-  should be included: `tern:noTransaction,postgres`.  This will rarely be useful in the case that
-  uncommon, dialect-specific syntax confuses the interpretation of statement terminating characters.
+* A SQL dialect hint can be given by, e.g., `tern:postgres`.  Supported values are `mysql`,
+  `postgres`, and `sqlite`.  This must be on the first line in a comment, together with
+  `noTransaction` if both should be included: `tern:noTransaction,postgres`.  This will rarely be
+  useful in the case that uncommon, dialect-specific syntax confuses the interpretation of statement
+  terminating characters.
 
 ```sql
 -- tern:noTransaction
@@ -316,13 +317,13 @@ the query that will be applied.
 #### Reverting migrations
 
 Previous versions of `tern` did not support reverting migrations.  In the author's personal
-experience, having a down migration available never came in handy, and the opinion is that, on the
-contrary, down migrations have a negative effect by giving a false sense of confidence during
-deployment, often making a bad situation worse.
+experience, having a down migration available never came in handy.  In fact, it's had only the
+opposite effect by giving a false sense of confidence during deployment, often making a bad
+situation worse.
 
 Consider: when would a down migration run?  It would run when something unexpected happened during
-deployment of the up version and the database was left in a state that is bad enough to want to
-revert the migration.  In this case, how much faith should we have in a "down" migration?  It was
+deployment of the up version where the database was left in a state that is bad enough to want to
+roll things back.  In this case, how much faith should we have in a "down" migration?  It was
 written only with the idea of "up" could _successfully_ have been applied.  In writing the down
 migration, we couldn't possibly have accounted for what led to the unexpected state for the mere
 fact that it was not expected.
@@ -333,9 +334,9 @@ is ran on its own, ignoring any annotations that may be found.
 
 The reasoning is that the task is best done by carefully reverting each up migration component
 one-by-one to ensure that the database is not left in an unknown state in case a failure occurs
-midway.  If an error is encountered and it is not safe to resume from the top of the given version,
+midway.  If an error is encountered and it's not safe to rerun the part of a version that succeeded,
 the statement's (0-based) index within the migration file can be given as an argument to the revert
-operation.  This resumes the operation from the last point of failure.
+operation.  This resumes the operation from the point of failure within the migration.
 
 ### Notes
 
@@ -351,10 +352,10 @@ Right now there's no `tracing` support offered, but please open an issue if this
 
 #### Compilation targets
 
-Because migrations are part of the source code, and .sql files are not generally expected to fit
-that definition, it is possible that changes to a .sql file will not trigger a recompilation of the
+Because migrations are part of the source code, and .sql files are not generally expected to be
+source code, it is possible that changes to a .sql file will not trigger a recompilation of the
 target.  In most cases it _should_ by some macro business, but the author currently doesn't know why
-this fails to be true on occasion.
+this is not true on occasion.
 
 A `cargo clean -p the-package` fixes it, but to resolve once and for all, a `build.rs` can be placed
 in the root of the crate with these contents:
