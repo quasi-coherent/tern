@@ -1,5 +1,4 @@
 services:
-
   postgres:
     build:
       dockerfile: postgres16.Dockerfile
@@ -10,14 +9,3 @@ services:
       POSTGRES_DATABASE: "tern"
     ports:
       - "5433:5432"
-
-  mysql:
-    image:
-      mysql:8.0-bookworm
-    environment:
-      MYSQL_ROOT_HOST: "%"
-      MYSQL_USER: "tern"
-      MYSQL_PASSWORD: "password"
-      MYSQL_DATABASE: "tern"
-    ports:
-      - "3307:3306"
