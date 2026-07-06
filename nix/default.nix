@@ -9,11 +9,11 @@
   partitionedAttrs.checks = "dev";
   partitionedAttrs.devShells = "dev";
   partitionedAttrs.formatter = "dev";
-  partitions.dev.extraInputsFlake = ../dev;
+  partitions.dev.extraInputsFlake = ./internal;
   partitions.dev.module = { inputs, ... }: {
     imports = [
       inputs.treefmt-nix.flakeModule
-      ./dev
+      ./perSystem.nix
     ];
   };
 }

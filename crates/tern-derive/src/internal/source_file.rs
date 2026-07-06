@@ -150,7 +150,7 @@ impl SourceFile {
 
                 fn query(&self) -> ::tern::TernResult<::tern::Query> {
                     ::tern::query::QueryReader::from_sql(#content)
-                        .and_then(|reader| reader.read_into())
+                        .and_then(|reader| reader.read_query())
                 }
             }
         }

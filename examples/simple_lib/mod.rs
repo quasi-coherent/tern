@@ -2,7 +2,6 @@
 //!
 //! This simple example shows how a custom context can be used to inject logic
 //! into a migration at runtime.
-use tern::ContextOptions;
 use tern::error::{ErrorKind, MigrationError, TernResult};
 
 mod migrations;
@@ -28,11 +27,5 @@ impl MigrationError for ExampleError {
 
     fn kind(&self) -> ErrorKind {
         ErrorKind::Custom
-    }
-}
-
-impl ContextOptions<SimpleExample> for () {
-    async fn initialize(self) -> TernResult<SimpleExample> {
-        SimpleExample::init().await
     }
 }

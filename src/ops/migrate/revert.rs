@@ -1,14 +1,15 @@
-use tern_core::context::MigrationContext;
+use tern_core::context::{MigrationContext, MigrationExecutor as _};
 use tern_core::error::TernError;
-use tern_core::migration::iter::DownMigrationSet;
-use tern_core::migration::{DownMigration, Migration};
-use tern_core::ops::MigrationOp;
-use tern_core::ops::migration::Down;
+use tern_core::migration::Migration;
+use tern_core::migration::iter::MigrationSetExt as _;
+use tern_core::ops::Operation;
+use tern_core::ops::migration::RevertOne;
 
+use crate::migration::{MigrationBox, MigrationBoxSet};
 use crate::ops::result::{CollectOp, OpResult};
 
 /// Arguments for the `Revert` operation.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "cli", derive(clap::Args))]
 pub struct RevertArgs {
     /// Revert migrations through this version.
@@ -17,12 +18,6 @@ pub struct RevertArgs {
     /// removes the version from history.
     #[cfg_attr(feature = "cli", arg(short = 'T', long))]
     to: i64,
-    /// Start the revert operation at the statement with this index.
-    ///
-    /// When resuming the revert operation from a previous failed attempt, this
-    /// can be used this to skip to the part that failed.
-    #[cfg_attr(feature = "cli", arg(long))]
-    start_idx: Option<u32>,
     /// Do a "soft revert" operation.
     ///
     /// This will delete the historical record for a migration, as if the down
@@ -36,13 +31,8 @@ pub struct RevertArgs {
 
 impl RevertArgs {
     /// Returns default options for the `Revert` operation.
-    pub fn new(to: i64) -> Self {
-        Self { to, start_idx: None, soft_revert: false, dryrun: false }
-    }
-
-    /// Start the revert operation at the statement with this index.
-    pub fn start_idx(self, idx: u32) -> Self {
-        Self { start_idx: Some(idx), ..self }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Do a "soft revert" operation.
@@ -60,11 +50,6 @@ impl RevertArgs {
         self.to
     }
 
-    /// Get the statement index to start from.
-    pub fn get_start_idx(&self) -> Option<u32> {
-        self.start_idx
-    }
-
     /// Whether this is configured to be a soft revert.
     pub fn get_soft_revert(&self) -> bool {
         self.soft_revert
@@ -75,43 +60,40 @@ impl RevertArgs {
         self.dryrun
     }
 
-    // The op only applies to versions v where `self.to <= v <= latest`.
     fn filter<Ctx: MigrationContext>(
         &self,
         latest: i64,
-        m: &DownMigration<Ctx>,
+        m: &MigrationBox<Ctx>,
     ) -> bool {
-        let v = m.version();
-        v <= latest && self.get_to() <= v
+        m.version() <= latest && m.version() >= self.to
     }
 
-    fn new_down<'a, Ctx>(&self, ctx: &'a mut Ctx) -> Down<'a, Ctx> {
-        let down = if self.get_soft_revert() {
-            Down::new_revert(ctx)
+    fn new_revert_one<'a, Ctx>(&self, ctx: &'a mut Ctx) -> RevertOne<'a, Ctx> {
+        let revert = if self.get_soft_revert() {
+            RevertOne::new(ctx).soft_revert()
         } else {
-            Down::new_soft_revert(ctx)
+            RevertOne::new(ctx)
         };
         if self.get_dryrun() {
-            return down.dryrun();
+            return revert.dryrun();
         }
-        if let Some(idx) = self.get_start_idx() {
-            down.start_idx(idx)
-        } else {
-            down
-        }
+        revert
     }
 }
 
 /// Input to the `Revert` operation.
 pub struct RevertInput<Ctx> {
-    set: DownMigrationSet<Ctx>,
+    set: MigrationBoxSet<Ctx>,
     args: RevertArgs,
 }
 
-impl<Ctx> RevertInput<Ctx> {
+impl<Ctx: MigrationContext> RevertInput<Ctx> {
     /// New `Revert` input.
-    pub fn new(set: DownMigrationSet<Ctx>, args: RevertArgs) -> Self {
-        Self { set, args }
+    pub fn new<I>(iter: I, args: RevertArgs) -> Self
+    where
+        I: DoubleEndedIterator<Item: Migration<Ctx = Ctx> + 'static>,
+    {
+        Self { set: iter.collect(), args }
     }
 }
 
@@ -125,25 +107,43 @@ impl<'a, Ctx: MigrationContext> Revert<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<RevertInput<Ctx>> for Revert<'_, Ctx> {
+impl<Ctx: MigrationContext + 'static> Operation<RevertInput<Ctx>>
+    for Revert<'_, Ctx>
+{
     type Output = OpResult;
 
     async fn exec(self, input: RevertInput<Ctx>) -> Self::Output {
+        let history = self.0.history_table();
         // If there have been no migrations applied, this operation doesn't make
         // sense and we return an error.
-        let latest =
-            self.0.latest_applied().await?.map(|l| l.version()).ok_or_else(
-                || TernError::Invalid("no version to revert".into()),
-            )?;
-        let args = input.args;
-        let iter = input.set.into_iter().filter(|m| args.filter(latest, m));
+        let latest = self
+            .0
+            .executor_mut()
+            .current_version(history)
+            .await?
+            .map(|data| data.version())
+            .ok_or_else(|| TernError::Invalid("no version to revert".into()))?;
 
+        let RevertInput { set, args } = input;
+
+        // The down migration subset selected necessarily has max version equal
+        // to the latest applied.
+        if set.version() != latest {
+            return Err(TernError::Invalid(format!(
+                "version error: last applied: {latest}, last from selection: {}",
+                set.version(),
+            )))?;
+        }
+
+        let mut migs = set.into_iter().range(Some(args.get_to()), None);
         let mut results = CollectOp::new();
 
-        for m in iter {
-            let op = args.new_down(self.0);
-            let result = op.exec(&m).await;
-            results.try_push(result)?;
+        while let Some(migration) = migs.next_back() {
+            if migration.version() >= args.to {
+                let op = args.new_revert_one(self.0);
+                let result = op.exec(&migration).await;
+                results.try_push(result)?;
+            }
         }
 
         results.ok()

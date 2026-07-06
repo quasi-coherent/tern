@@ -2,11 +2,9 @@
 //! will run them.
 //!
 //! [`TernApp`]: tern::TernApp
-use tern::TernApp;
 use tern::error::TernResult;
-use tern::executor::sqlx::{SqlxError, SqlxPgExecutor};
-use tern::executor::util::sqlx;
-use tern::executor::{ConnStr, ExecutorOptions};
+use tern::executor::{ConnStr, SqlxError, SqlxPgExecutor, sqlx};
+use tern::{ExecutorOptions, TernApp};
 
 use super::ExampleError;
 
@@ -28,7 +26,7 @@ use super::ExampleError;
 /// This is very contrived, but demonstrates the capability.
 ///
 /// [`MigrationExecutor`]: tern::executor::MigrationExecutor
-#[derive(Clone, Debug, TernApp)]
+#[derive(Debug, TernApp)]
 #[tern(source = "examples/simple_lib/migrations", table = "_simple_history")]
 pub struct SimpleExample {
     /// The type that impls `MigrationExecutor`.  This can be created using the
@@ -69,17 +67,16 @@ impl SimpleExample {
     /// let result = Tern::run_new(SimpleExample::init).await;
     /// # }
     /// ```
-    pub async fn init() -> TernResult<Self> {
-        let db_url = ConnStr::from_env("DATABASE_URL")?;
-        let exec = db_url.connect().await?;
+    pub async fn new(conn: ConnStr) -> TernResult<Self> {
+        let exec = SqlxPgExecutor::new(&conn).await?;
         Ok(Self { exec, env: GetEnvVar })
     }
 
     /// Gets the maximum `x` in the table `simple_example`.
-    pub async fn get_max_x(&self) -> TernResult<i64> {
+    pub async fn get_max_x(&mut self) -> TernResult<i64> {
         let maxx: i64 =
             sqlx::query_scalar("SELECT max(x) FROM simple_example;")
-                .fetch_optional(self.exec.inner())
+                .fetch_optional(self.exec.inner_mut())
                 .await
                 .map_err(SqlxError::from)?
                 .unwrap_or_default();

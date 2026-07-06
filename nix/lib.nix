@@ -70,35 +70,71 @@ let
       };
     in
     {
-      inherit crane buildArgs cargoArtifacts;
+      inherit cargoArtifacts crane buildArgs;
     };
 
-  forPkgs = pkgs: {
-    mkCrane =
-      {
-        rustToolchain ? null,
-      }:
-      mkCrane' { inherit pkgs rustToolchain; };
+  forPkgs =
+    pkgs:
+    let
+      system = pkgs.stdenvNoCC.hostPlatform.system;
+      stableToolchain = inputs.fenix.packages.${system}.stable.toolchain;
+      nightlyToolchain = inputs.fenix.packages.${system}.latest.toolchain;
 
-    mkBuildArgs =
-      {
-        cargoRoot,
-        rustToolchain ? null,
-        extraSources ? [ ],
-        cargoExtraArgs ? "--locked",
-        cargoBuildExtraArgs ? "",
-      }:
-      mkBuildArgs' {
-        inherit
-          pkgs
-          cargoRoot
-          rustToolchain
-          extraSources
-          cargoExtraArgs
-          cargoBuildExtraArgs
-          ;
-      };
-  };
+      mkCrane =
+        {
+          rustToolchain ? stableToolchain,
+        }:
+        mkCrane' { inherit pkgs rustToolchain; };
+
+      mkBuildArgs =
+        {
+          cargoRoot,
+          rustToolchain ? stableToolchain,
+          extraSources ? [ ],
+          cargoExtraArgs ? "--locked",
+          cargoBuildExtraArgs ? "",
+        }:
+        mkBuildArgs' {
+          inherit
+            pkgs
+            cargoRoot
+            rustToolchain
+            extraSources
+            cargoExtraArgs
+            cargoBuildExtraArgs
+            ;
+        };
+    in
+    {
+      inherit mkCrane mkBuildArgs;
+
+      # Use the nightly toolchain by default.
+      # Some common `cargo doc` features need it.
+      mkDocs =
+        {
+          cargoRoot,
+          rustToolchain ? nightlyToolchain,
+          rustdocFlags ? "",
+          cargoExtraArgs ? "--locked",
+          cargoDocExtraArgs ? "--no-deps",
+        }:
+        let
+          build = mkBuildArgs { inherit cargoExtraArgs cargoRoot rustToolchain; };
+          inherit (build) cargoArtifacts crane buildArgs;
+
+        in
+        crane.cargoDoc {
+          inherit cargoArtifacts cargoDocExtraArgs;
+          inherit (buildArgs)
+            pname
+            version
+            src
+            strictDeps
+            cargoExtraArgs
+            ;
+          env.RUSTDOCFLAGS = rustdocFlags;
+        };
+    };
 in
 {
   inherit forPkgs;

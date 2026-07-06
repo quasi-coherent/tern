@@ -5,14 +5,18 @@ mod any;
 pub use any::{SqlxAnyExecutor, SqlxAnyExecutorOptions};
 
 #[cfg(feature = "sqlx_mysql")]
-pub mod mysql;
+mod mysql;
+pub use mysql::{SqlxMySqlExecutor, SqlxMySqlExecutorOptions};
 
 #[cfg(feature = "sqlx_postgres")]
-pub mod postgres;
+mod postgres;
+pub use postgres::{SqlxPgExecutor, SqlxPgExecutorOptions};
 
 #[cfg(feature = "sqlx_sqlite")]
-pub mod sqlite;
+mod sqlite;
+pub use sqlite::{SqlxSqliteExecutor, SqlxSqliteExecutorOptions};
 
+/// Database errors from the underlying `sqlx` crate.
 #[derive(Debug, thiserror::Error)]
 pub struct SqlxError(sqlx::Error);
 
@@ -35,5 +39,12 @@ impl MigrationError for SqlxError {
 impl From<sqlx::Error> for SqlxError {
     fn from(value: sqlx::Error) -> Self {
         Self(value)
+    }
+}
+
+impl From<url::ParseError> for SqlxError {
+    fn from(value: url::ParseError) -> Self {
+        let err = sqlx::Error::Configuration(Box::new(value));
+        Self(err)
     }
 }

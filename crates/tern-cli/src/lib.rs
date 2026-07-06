@@ -2,8 +2,9 @@
 //!
 //! A helper CLI for `tern` applications.
 use clap::Args;
+use std::fmt::{self, Debug, Formatter};
+use tern_core::context::ConnStr;
 use tern_core::error::{TernError, TernResult};
-use tern_executor::{ConnStr, ExecutorOptions};
 
 /// Option to provide a connection string for the target database.
 #[derive(Clone, Args)]
@@ -24,12 +25,17 @@ impl ConnOpt {
     }
 }
 
-impl<E> ExecutorOptions<E> for ConnOpt
-where
-    ConnStr: ExecutorOptions<E>,
-{
-    async fn connect(self) -> TernResult<E> {
-        let conn = self.get_db_url()?;
-        conn.connect().await
+impl Debug for ConnOpt {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConnOpt")
+            .field(
+                "database_url",
+                &self
+                    .database_url
+                    .as_ref()
+                    .map(|_| "REDACTED")
+                    .unwrap_or("None"),
+            )
+            .finish()
     }
 }

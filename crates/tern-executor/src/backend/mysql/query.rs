@@ -1,14 +1,15 @@
-use tern_core::migration::{HistoryTable, MigrationData};
+use tern_core::context::RelationId;
+use tern_core::migration::MigrationData;
 
 use super::MySqlBackend;
 use crate::backend::ExecutorBackend;
 
 impl ExecutorBackend for MySqlBackend {
-    fn check_history(history: HistoryTable) -> String {
-        let table = history.table();
-        let schema = match history.schema() {
+    fn check_history(history: RelationId) -> String {
+        let table = history.relname();
+        let schema = match history.relschema() {
             Some(ns) => format!("table_schema = '{ns}'"),
-            _ => "true".into(),
+            _ => "table_schema = DATABASE()".into(),
         };
 
         format!(
@@ -21,12 +22,12 @@ FROM (
   WHERE
     {schema}
     AND table_name = '{table}'
-);
+) AS counted;
 "
         )
     }
 
-    fn init_history_query(history: HistoryTable) -> String {
+    fn init_history_query(history: RelationId) -> String {
         format!(
             "
 CREATE TABLE IF NOT EXISTS {history}(
@@ -39,11 +40,23 @@ CREATE TABLE IF NOT EXISTS {history}(
         )
     }
 
-    fn drop_history_query(history: HistoryTable) -> String {
+    fn drop_history_query(history: RelationId) -> String {
         format!("DROP TABLE IF EXISTS {history};")
     }
 
-    fn get_all_applied_query(history: HistoryTable) -> String {
+    fn get_applied_where_query(
+        history: RelationId,
+        min_version: Option<i64>,
+        max_version: Option<i64>,
+    ) -> String {
+        let minv = match min_version {
+            Some(v) => format!("version >= {v}"),
+            _ => "true".into(),
+        };
+        let maxv = match max_version {
+            Some(v) => format!("version <= {v}"),
+            _ => "true".into(),
+        };
         format!(
             "
 SELECT
@@ -55,7 +68,8 @@ SELECT
 FROM
   {history}
 WHERE
-  version > 0
+  {minv}
+  AND {maxv}
 ORDER BY
   version;
 "
@@ -63,7 +77,7 @@ ORDER BY
     }
 
     fn insert_applied_query(
-        history: HistoryTable,
+        history: RelationId,
         data: &MigrationData,
     ) -> String {
         format!(
@@ -72,14 +86,14 @@ INSERT INTO {history}(version, description, content, duration_ms, applied_at)
   VALUES ({}, '{}', '{}', {}, '{}');
 ",
             data.version(),
-            data.description_ref(),
-            data.content_ref(),
+            data.description(),
+            data.content(),
             data.duration_millis(),
             data.applied_at(),
         )
     }
 
-    fn delete_applied_query(history: HistoryTable, version: i64) -> String {
+    fn delete_applied_query(history: RelationId, version: i64) -> String {
         format!(
             "
 DELETE FROM {history}
@@ -89,14 +103,14 @@ WHERE version = {version};
     }
 
     fn upsert_applied_query(
-        history: HistoryTable,
+        history: RelationId,
         data: &MigrationData,
     ) -> String {
         format!(
             "
 INSERT INTO {history}(version, description, content, duration_ms, applied_at)
   VALUES ({}, '{}', '{}', {}, '{}')
-  ON DUPLICATE_KEY
+  ON DUPLICATE KEY
   UPDATE
     description = VALUES(description),
     content = VALUES(content),
@@ -104,8 +118,8 @@ INSERT INTO {history}(version, description, content, duration_ms, applied_at)
     applied_at = VALUES(applied_at);
 ",
             data.version(),
-            data.description_ref(),
-            data.content_ref(),
+            data.description(),
+            data.content(),
             data.duration_millis(),
             data.applied_at(),
         )

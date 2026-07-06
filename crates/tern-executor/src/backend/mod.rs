@@ -1,5 +1,6 @@
 //! Supporting backend operations for `tern`.
-use tern_core::migration::{HistoryTable, MigrationData};
+use tern_core::context::RelationId;
+use tern_core::migration::MigrationData;
 
 pub(crate) mod mysql;
 pub(crate) mod postgres;
@@ -8,30 +9,34 @@ pub(crate) mod sqlite;
 /// Internal helper trait collecting the queries to impl stuff.
 #[allow(dead_code)]
 pub(crate) trait ExecutorBackend {
-    /// Query for `MigrationExecutor::check_history`.
-    fn check_history(history: HistoryTable) -> String;
+    /// Query for `MigrationExecutor::history_exists`.
+    fn check_history(history: RelationId) -> String;
 
-    /// Query for `MigrationExecutor::init`.
-    fn init_history_query(history: HistoryTable) -> String;
+    /// Query for `MigrationExecutor::create_if_not_exists`.
+    fn init_history_query(history: RelationId) -> String;
 
-    /// Query for `MigrationExecutor::drop_history`.
-    fn drop_history_query(history: HistoryTable) -> String;
+    /// Query for `MigrationExecutor::drop_if_exists`.
+    fn drop_history_query(history: RelationId) -> String;
 
-    /// Query for `MigrationExecutor::get_all_applied`.
-    fn get_all_applied_query(history: HistoryTable) -> String;
+    /// Query for `MigrationExecutor::select_where_version_between`.
+    fn get_applied_where_query(
+        history: RelationId,
+        min_version: Option<i64>,
+        max_version: Option<i64>,
+    ) -> String;
 
-    /// Query for `MigrationExecutor::insert_applied`.
+    /// Query for `MigrationExecutor::insert_into`.
     fn insert_applied_query(
-        history: HistoryTable,
+        history: RelationId,
         data: &MigrationData,
     ) -> String;
 
-    /// Query for `MigrationExecutor::delete_applied`.
-    fn delete_applied_query(history: HistoryTable, version: i64) -> String;
+    /// Query for `MigrationExecutor::delete_from`.
+    fn delete_applied_query(history: RelationId, version: i64) -> String;
 
-    /// Query for `MigrationExecutor::upsert_applied`.
+    /// Query for `MigrationExecutor::insert_or_update`.
     fn upsert_applied_query(
-        history: HistoryTable,
+        history: RelationId,
         data: &MigrationData,
     ) -> String;
 }

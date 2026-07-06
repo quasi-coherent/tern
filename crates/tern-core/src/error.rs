@@ -1,3 +1,4 @@
+//! Error interface for `tern`.
 use std::error::Error as StdError;
 use std::fmt::Display;
 

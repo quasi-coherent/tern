@@ -1,13 +1,13 @@
 system := `nix-instantiate --raw --strict --eval -E builtins.currentSystem`
 
-check *args:
+chk *args:
     nix flake check {{args}}
 
-ci:
-    nix run .#render-workflows
+bld *args:
+    nix build .#checks.{{system}}.tern {{args}}
 
-doc:
-    nix run .#tern-doc
+fmtt *args:
+    fmtt {{args}}
 
-update-rs:
+upd-rs:
     nix flake update fenix

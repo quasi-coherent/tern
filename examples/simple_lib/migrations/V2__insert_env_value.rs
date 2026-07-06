@@ -55,7 +55,7 @@ impl ResolveMigration for SimpleExampleInsertUser {
                 ));
                 acc
             })
-            .into_reader()
-            .read_into()
+            .build()
+            .read_query()
     }
 }

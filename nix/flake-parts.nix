@@ -5,21 +5,20 @@
   ...
 }:
 let
-  tern-lib = import ./lib.nix { inherit inputs lib; };
+  ternLib = import ./lib.nix { inherit inputs lib; };
 in
 {
   flake = {
-    inherit tern-lib;
+    inherit ternLib;
 
     flakeModules = {
       default = self.flakeModules.tern;
       tern = {
         imports = [
           ./options.nix
-          (import ./modules/tern.nix { ternLib = tern-lib; })
+          (import ./modules/tern.nix { inherit ternLib; })
         ];
       };
-      db = import ./db { ternInputs = inputs; };
     };
   };
 }

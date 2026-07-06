@@ -21,3 +21,4 @@ log = { workspace = true, features = ["kv"] }
 regex = { workspace = true }
 sqlx = { workspace = true, optional = true }
 thiserror = { workspace = true }
+url = { workspace = true }

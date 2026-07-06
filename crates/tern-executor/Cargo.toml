@@ -15,10 +15,12 @@ path = "src/lib.rs"
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = []
-sqlx_mysql = ["dep:sqlx", "tern-core/sqlx", "sqlx/mysql"]
-sqlx_postgres = ["dep:sqlx", "tern-core/sqlx", "sqlx/postgres"]
-sqlx_sqlite = ["dep:sqlx", "tern-core/sqlx", "sqlx/sqlite"]
+default = ["sqlx_mysql", "sqlx_postgres", "sqlx_sqlite"]
+
+_sqlx = ["dep:sqlx", "tern-core/sqlx"]
+sqlx_mysql = ["_sqlx", "sqlx/mysql"]
+sqlx_postgres = ["_sqlx", "sqlx/postgres"]
+sqlx_sqlite = ["_sqlx", "sqlx/sqlite"]
 
 [dependencies]
 chrono = { workspace = true }
@@ -28,3 +30,4 @@ regex = { workspace = true }
 sqlx = { workspace = true, optional = true }
 tern-core = { workspace = true }
 thiserror = { workspace = true }
+url = { workspace = true }

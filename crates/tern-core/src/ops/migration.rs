@@ -2,14 +2,14 @@
 use chrono::Utc;
 use std::marker::PhantomData;
 
-use crate::context::{MigrationContext, MigrationExecutor};
+use crate::context::{MigrationContext, MigrationExecutor as _};
 use crate::error::{ResultWithId as _, TernError, TernResult};
-use crate::migration::{DownMigration, Migration, MigrationData, UpMigration};
-use crate::ops::MigrationOp;
+use crate::migration::{Migration, MigrationData};
+use crate::ops::Operation;
 use crate::ops::crud::{DeleteApplied, UpdateApplied};
 use crate::query::Query;
 
-/// Operation to return the query of a migration.
+/// Operation to statically return the query of a migration.
 ///
 /// This only calls `query`, so returns a placeholder if the migration's query
 /// is dynamically defined.
@@ -28,18 +28,18 @@ impl<'a, Ctx> Default for StaticQuery<'a, Ctx> {
     }
 }
 
-impl<M, Ctx> MigrationOp<&M> for StaticQuery<'_, Ctx>
+impl<M, Ctx> Operation<&M> for StaticQuery<'_, Ctx>
 where
     Ctx: MigrationContext,
     M: Migration<Ctx = Ctx>,
 {
-    type Output = TernResult<Query>;
+    type Output = Query;
 
     async fn exec(self, input: &M) -> Self::Output {
         let id = input.migration_id();
-        let q = input.query().map_err_id(id)?;
+        let q = input.show_query();
         log::debug!(id:%, query:% = q; "static query");
-        Ok(q)
+        q
     }
 }
 
@@ -53,7 +53,7 @@ impl<'a, Ctx> RenderQuery<'a, Ctx> {
     }
 }
 
-impl<M, Ctx> MigrationOp<&M> for RenderQuery<'_, Ctx>
+impl<M, Ctx> Operation<&M> for RenderQuery<'_, Ctx>
 where
     Ctx: MigrationContext,
     M: Migration<Ctx = Ctx>,
@@ -62,37 +62,35 @@ where
 
     async fn exec(self, input: &M) -> Self::Output {
         let id = input.migration_id();
-        let q = input.resolve_query(self.0).await.map_err_id(id)?;
+        let q = input.query(self.0).await?;
         log::debug!(id:%, query:% = q; "rendered query");
         Ok(q)
     }
 }
 
-/// An operation for applying one up migration.
-///
-/// Note that this also runs the operation `InsertMigrationData` on success, so
-/// it is not necessary to run the insert when this completes.
+/// An operation for applying one migration and updating the history table on
+/// success.
 #[derive(Debug)]
-pub struct Up<'a, Ctx> {
+pub struct ApplyOne<'a, Ctx> {
     ctx: &'a mut Ctx,
     dryrun: bool,
     soft_apply: bool,
 }
 
-impl<'a, Ctx> Up<'a, Ctx> {
-    /// New `Up` operation.
-    pub fn new_apply(ctx: &'a mut Ctx) -> Self {
+impl<'a, Ctx> ApplyOne<'a, Ctx> {
+    /// New `ApplyOne` operation.
+    pub fn new(ctx: &'a mut Ctx) -> Self {
         Self { ctx, dryrun: false, soft_apply: false }
     }
 
-    /// New `Up` inserting into history but skipping the migration query.
-    pub fn new_soft_apply(ctx: &'a mut Ctx) -> Self {
-        Self { ctx, dryrun: false, soft_apply: true }
+    /// Set this to be a "soft" apply.
+    pub fn soft_apply(self) -> ApplyOne<'a, Ctx> {
+        ApplyOne { ctx: self.ctx, dryrun: true, soft_apply: true }
     }
 
     /// Set this to be a dryrun.
-    pub fn dryrun(self) -> Up<'a, Ctx> {
-        Up { ctx: self.ctx, dryrun: true, soft_apply: self.soft_apply }
+    pub fn dryrun(self) -> ApplyOne<'a, Ctx> {
+        ApplyOne { ctx: self.ctx, dryrun: true, soft_apply: self.soft_apply }
     }
 
     /// `true` if this is a dryrun.
@@ -106,79 +104,61 @@ impl<'a, Ctx> Up<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<&UpMigration<Ctx>> for Up<'_, Ctx> {
+impl<M, Ctx> Operation<&M> for ApplyOne<'_, Ctx>
+where
+    Ctx: MigrationContext,
+    M: Migration<Ctx = Ctx>,
+{
     type Output = TernResult<MigrationData>;
 
-    async fn exec(self, input: &UpMigration<Ctx>) -> Self::Output {
+    async fn exec(self, input: &M) -> Self::Output {
         let id = input.migration_id();
+        let version = id.version();
+        let description = id.description();
         let start = Utc::now();
+        let q = RenderQuery(self.ctx).exec(input).await?;
 
-        let applied = async {
-            let q = RenderQuery::new(self.ctx).exec(input).await?;
-            if self.is_dryrun() {
-                return Ok::<_, TernError>(MigrationData::new(id, &q, start));
-            }
-            if !self.is_soft_apply() {
-                self.ctx.executor_mut().send(&q).await?;
-                log::debug!(id:%; "applied migration");
-            }
-            let applied = MigrationData::new(id, &q, start);
+        let mut data = MigrationData::new(version, description, &q);
 
-            // If not a "soft" apply, the record should not exist in history.
-            // The `UpdateMigrationData` operation should do the same thing in
-            // either case though.
-            UpdateApplied::new(self.ctx).exec(&applied).await?;
-
-            Ok(applied)
+        if self.dryrun {
+            data.finished(start);
+            return Ok::<_, TernError>(data);
         }
-        .await
-        .map_err_id(id)?;
+        if !self.soft_apply {
+            self.ctx.executor_mut().send(&q).await?;
+            log::debug!(id:%; "applied migration");
+        }
 
-        Ok(applied)
+        data.finished(start);
+        UpdateApplied::new(self.ctx).exec(&data).await.map_err_id(id)?;
+
+        Ok(data)
     }
 }
 
-/// An operation for applying one down migration.
-///
-/// Note that this also runs the operation `DeleteMigrationData` on success, so
-/// it is not necessary to follow up this operation with that one.
+/// An operation for applying down migration and updating the history table on
+/// success.
 #[derive(Debug)]
-pub struct Down<'a, Ctx> {
+pub struct RevertOne<'a, Ctx> {
     ctx: &'a mut Ctx,
     dryrun: bool,
     soft_revert: bool,
-    start_idx: Option<u32>,
 }
 
-impl<'a, Ctx> Down<'a, Ctx> {
+impl<'a, Ctx> RevertOne<'a, Ctx> {
     /// New `Revert` operation.
-    pub fn new_revert(ctx: &'a mut Ctx) -> Self {
-        Self { ctx, dryrun: false, soft_revert: false, start_idx: None }
+    pub fn new(ctx: &'a mut Ctx) -> Self {
+        Self { ctx, dryrun: false, soft_revert: false }
     }
 
-    /// New `Revert` removing from history but skipping the migration query.
-    pub fn new_soft_revert(ctx: &'a mut Ctx) -> Self {
-        Self { ctx, dryrun: false, soft_revert: true, start_idx: None }
+    /// Set this to be a "soft" revert.
+    pub fn soft_revert(self) -> RevertOne<'a, Ctx> {
+        RevertOne { ctx: self.ctx, dryrun: true, soft_revert: true }
     }
 
     /// Set this to be a dryrun.
-    pub fn dryrun(self) -> Down<'a, Ctx> {
-        Down {
-            ctx: self.ctx,
-            dryrun: true,
-            soft_revert: self.soft_revert,
-            start_idx: None,
-        }
-    }
-
-    /// Set the index of the statement with the first migration the start from.
-    pub fn start_idx(self, idx: u32) -> Down<'a, Ctx> {
-        Down {
-            ctx: self.ctx,
-            dryrun: true,
-            soft_revert: self.soft_revert,
-            start_idx: Some(idx),
-        }
+    pub fn dryrun(self) -> RevertOne<'a, Ctx> {
+        RevertOne { ctx: self.ctx, dryrun: true, soft_revert: self.soft_revert }
     }
 
     /// `true` if this is a dryrun.
@@ -190,40 +170,36 @@ impl<'a, Ctx> Down<'a, Ctx> {
     pub fn is_soft_revert(&self) -> bool {
         self.soft_revert
     }
-
-    /// Gets the index to start from.
-    pub fn get_start_idx(&self) -> Option<u32> {
-        self.start_idx
-    }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<&DownMigration<Ctx>> for Down<'_, Ctx> {
+impl<M, Ctx> Operation<&M> for RevertOne<'_, Ctx>
+where
+    Ctx: MigrationContext,
+    M: Migration<Ctx = Ctx>,
+{
     type Output = TernResult<MigrationData>;
 
-    async fn exec(self, input: &DownMigration<Ctx>) -> Self::Output {
+    async fn exec(self, input: &M) -> Self::Output {
         let id = input.migration_id();
+        let version = id.version();
+        let description = id.description();
         let start = Utc::now();
+        let q = RenderQuery(self.ctx).exec(input).await?;
 
-        let applied = async {
-            // Override this to run outside a transaction.
-            // This is the opinionated behavior of `tern` with down migrations.
-            let q = RenderQuery::new(self.ctx).exec(input).await?.force_notx();
-            if self.is_dryrun() {
-                return Ok::<_, TernError>(MigrationData::new(id, &q, start));
-            }
-            if !self.is_soft_revert() {
-                self.ctx.executor_mut().send(&q).await?;
-                log::debug!(id:%; "reverted migration");
-            }
+        let mut data = MigrationData::new(version, description, &q);
 
-            let applied = MigrationData::new(id, &q, start);
-            DeleteApplied::new(self.ctx).exec(&applied).await?;
-
-            Ok(applied)
+        if self.dryrun {
+            data.finished(start);
+            return Ok::<_, TernError>(data);
         }
-        .await
-        .map_err_id(id)?;
+        if !self.soft_revert {
+            self.ctx.executor_mut().send(&q).await?;
+            log::debug!(id:%; "reverted migration");
+        }
 
-        Ok(applied)
+        data.finished(start);
+        DeleteApplied::new(self.ctx).exec(&data).await.map_err_id(id)?;
+
+        Ok(data)
     }
 }
