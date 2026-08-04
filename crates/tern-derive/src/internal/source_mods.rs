@@ -117,17 +117,30 @@ impl SourceModTokens {
     }
 }
 
-// Mapping of version to source file data.
+/// Mapping of version to source file data.
 #[derive(Default)]
-
-struct SourceMap {
+pub(crate) struct SourceMap {
     simple: BTreeMap<i64, SourceFile>,
     up: BTreeMap<i64, SourceFile>,
     down: BTreeMap<i64, SourceFile>,
 }
 
 impl SourceMap {
-    fn new(source: &syn::LitStr) -> Result<Self> {
+    /// Whether the source consists of up/down pairs.
+    pub(crate) fn is_updown(&self) -> bool {
+        self.simple.is_empty() && !self.up.is_empty()
+    }
+
+    /// The `(version, description)` of each up/down pair, ascending.
+    pub(crate) fn updown_pairs(
+        &self,
+    ) -> impl Iterator<Item = (i64, String)> + '_ {
+        self.up.iter().map(|(v, f)| (*v, f.description.value()))
+    }
+}
+
+impl SourceMap {
+    pub(crate) fn new(source: &syn::LitStr) -> Result<Self> {
         let source_dir = Self::iter_source_dir(source)?;
         let this = Self::from_dir_entries(source_dir)?;
         this.validate()?;

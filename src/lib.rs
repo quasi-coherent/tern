@@ -9,28 +9,35 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 mod app;
-pub use app::{ContextOptions, Tern, TernApp};
-
 #[cfg(feature = "cli")]
-mod cli;
+pub use app::cli::TernCli;
+pub use app::{AppOptions, Tern, TernApp};
 
-pub mod executor;
+pub mod exec;
+pub mod migration;
 pub mod ops;
 
-pub mod migration;
-pub use migration::{Migration, Query, ResolveMigration, query};
-
 pub use tern_core::context::MigrationContext;
+pub use tern_core::migration::Migration;
+
+#[cfg(feature = "testing")]
+#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
+pub mod testing;
+
 #[doc(inline)]
 pub use tern_core::error::{self, TernError, TernResult};
+
+#[doc(hidden)]
+extern crate tern_derive;
+
+pub use tern_derive::{Migration, TernApp};
+
+#[cfg(feature = "testing")]
+#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
+pub use tern_derive::{test, test_suite};
 
 // Symbols needed by proc macros.
 #[doc(hidden)]
 pub mod private {
     pub use futures_core::future::BoxFuture;
 }
-
-#[doc(hidden)]
-extern crate tern_derive;
-
-pub use tern_derive::{Migration, TernApp};

@@ -1,3 +1,8 @@
+//! The `history` command.
+//!
+//! ## Subcommands
+//!
 //! * `DropIfExists` the history table.
-//! * `Init` the history table.
-pub use tern_core::ops::ddl::{DropIfExists, Init};
+//! * `CreateIfNotExists` history table for a migration set.
+#[doc(inline)]
+pub use tern_core::ops::ddl::{CreateIfNotExists, DropIfExists};

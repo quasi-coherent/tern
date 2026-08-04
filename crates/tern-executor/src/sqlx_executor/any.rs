@@ -1,77 +1,96 @@
 use chrono::{DateTime, Utc};
-use sqlx::pool::PoolOptions;
-use sqlx::{Acquire as _, Database, Executor as _};
-use tern_core::context::MigrationExecutor;
-use tern_core::error::{TernError, TernResult};
-use tern_core::migration::{HistoryTable, MigrationData};
+use sqlx::{Acquire, ConnectOptions as _, Database, Executor as _};
+use tern_core::context::{ConnStr, MigrationExecutor, RelationId};
+use tern_core::error::TernResult;
+use tern_core::migration::MigrationData;
 
 use crate::backend::ExecutorBackend;
 use crate::sqlx_executor::SqlxError;
-use crate::{ConnStr, ExecutorOptions};
 
-/// `ExecutorOptions` for any of the `MigrationExecutor`s coming from `sqlx`.
+/// Options for building `sqlx` executors.
+///
+/// This is the associated type [`SqlxAnyExecutor::Options`], so is used to
+/// build all `sqlx` executor types by specializing `Db: Database`.
+#[derive(Clone)]
 pub struct SqlxAnyExecutorOptions<Db: Database> {
-    pool: PoolOptions<Db>,
-    conn: <Db::Connection as sqlx::Connection>::Options,
+    options: <Db::Connection as sqlx::Connection>::Options,
 }
 
 impl<Db: Database> SqlxAnyExecutorOptions<Db> {
-    /// New from `sqlx` options.
-    pub fn new(
-        pool: PoolOptions<Db>,
-        conn: <Db::Connection as sqlx::Connection>::Options,
+    /// Create new options from a connection string.
+    pub fn new(conn: &ConnStr) -> TernResult<Self> {
+        let url = conn.try_into_url()?;
+        let options =
+            <Db::Connection as sqlx::Connection>::Options::from_url(&url)
+                .map_err(SqlxError::from)?;
+        Ok(Self { options })
+    }
+
+    /// New from the `sqlx::Connection`'s associated `Options`.
+    pub fn from_options(
+        options: <Db::Connection as sqlx::Connection>::Options,
     ) -> Self {
-        Self { pool, conn }
+        Self { options }
     }
-}
 
-impl<Db: Database> ExecutorOptions<SqlxAnyExecutor<Db>>
-    for SqlxAnyExecutorOptions<Db>
-{
-    async fn connect(self) -> TernResult<SqlxAnyExecutor<Db>> {
-        SqlxAnyExecutor::from_options(self.pool, self.conn).await
+    /// Return a reference to the connection options.
+    pub fn get_options(
+        &self,
+    ) -> &<Db::Connection as sqlx::Connection>::Options {
+        &self.options
     }
-}
 
-impl<Db: Database> ExecutorOptions<SqlxAnyExecutor<Db>> for ConnStr {
-    async fn connect(self) -> TernResult<SqlxAnyExecutor<Db>> {
-        SqlxAnyExecutor::new(&self.0).await
+    /// Consume this type, returning the inner options.
+    pub fn inner(self) -> <Db::Connection as sqlx::Connection>::Options {
+        self.options
+    }
+
+    /// Return the database URL.
+    ///
+    /// This does not retain any setting that does not have a representation in
+    /// URL format.
+    pub fn db_url(&self) -> url::Url {
+        self.options.to_url_lossy()
     }
 }
 
 /// A `MigrationExecutor` over any `sqlx::Database`.
 #[derive(Debug)]
-pub struct SqlxAnyExecutor<Db: Database>(sqlx::Pool<Db>);
+pub struct SqlxAnyExecutor<Db: Database>(Db::Connection);
 
 impl<Db: Database> SqlxAnyExecutor<Db> {
-    /// New value from a connection string.
-    pub async fn new(db_url: &str) -> TernResult<Self> {
-        let pool =
-            sqlx::Pool::connect(db_url).await.map_err(SqlxError::from)?;
-        Ok(Self(pool))
+    /// Create new options from a connection string.
+    pub async fn new(conn: &ConnStr) -> TernResult<Self> {
+        let this = <Db::Connection as sqlx::Connection>::connect(conn)
+            .await
+            .map(Self)
+            .map_err(SqlxError::from)?;
+        Ok(this)
     }
 
-    /// New from more general options.
+    /// New from the `sqlx::Connection`'s associated `Options`.
     pub async fn from_options(
-        pool_opts: PoolOptions<Db>,
-        conn_opts: <Db::Connection as sqlx::Connection>::Options,
+        opts: &<Db::Connection as sqlx::Connection>::Options,
     ) -> TernResult<Self> {
-        let pool =
-            pool_opts.connect_with(conn_opts).await.map_err(SqlxError::from)?;
-        Ok(Self(pool))
+        let this = <Db::Connection as sqlx::Connection>::connect_with(opts)
+            .await
+            .map(Self)
+            .map_err(SqlxError::from)?;
+        Ok(this)
     }
 
-    /// Return the underlying connection pool for custom operations.
-    pub fn inner(&self) -> &sqlx::Pool<Db> {
-        &self.0
+    /// Return the underlying connection for custom operations.
+    pub fn inner_mut(&mut self) -> &mut Db::Connection {
+        &mut self.0
     }
 }
 
 impl<Db> MigrationExecutor for SqlxAnyExecutor<Db>
 where
     Db: Database + ExecutorBackend,
+    Db::Connection: Send + Sync,
     for<'c> &'c mut <Db as Database>::Connection:
-        sqlx::Executor<'c, Database = Db>,
+        sqlx::Executor<'c, Database = Db> + sqlx::Acquire<'c, Database = Db>,
     for<'q> <Db as Database>::Arguments<'q>: sqlx::IntoArguments<'q, Db>,
     for<'r> MigrationData: sqlx::FromRow<'r, <Db as Database>::Row>,
     String: sqlx::Type<Db> + for<'a> sqlx::Encode<'a, Db>,
@@ -79,11 +98,16 @@ where
     DateTime<Utc>: sqlx::Type<Db> + for<'a> sqlx::Encode<'a, Db>,
     for<'r> (bool,): sqlx::FromRow<'r, <Db as Database>::Row>,
 {
+    async fn connect(conn: &ConnStr) -> TernResult<Self> {
+        Self::new(conn).await
+    }
+
     async fn send_tx(&mut self, query: &str) -> TernResult<()> {
         async {
             let mut tx = self.0.begin().await?;
             let conn = tx.acquire().await?;
-            conn.execute(sqlx::raw_sql(query)).await
+            conn.execute(sqlx::raw_sql(query)).await?;
+            tx.commit().await
         }
         .await
         .map_err(SqlxError::from)?;
@@ -91,116 +115,118 @@ where
     }
 
     async fn send_notx(&mut self, query: &str) -> TernResult<()> {
-        self.inner()
+        self.inner_mut()
             .execute(sqlx::raw_sql(query))
             .await
             .map_err(SqlxError::from)?;
         Ok(())
     }
 
-    async fn init_history(&mut self, history: HistoryTable) -> TernResult<()> {
+    async fn create_if_not_exists(
+        &mut self,
+        history: RelationId,
+    ) -> TernResult<()> {
         let sql = Db::init_history_query(history);
         log::trace!("running {sql}");
-        self.inner()
+        self.inner_mut()
             .execute(sqlx::raw_sql(&sql))
             .await
             .map_err(SqlxError::from)?;
         Ok(())
     }
 
-    async fn drop_history(&mut self, history: HistoryTable) -> TernResult<()> {
+    async fn drop_if_exists(&mut self, history: RelationId) -> TernResult<()> {
         let sql = Db::drop_history_query(history);
         log::trace!("running {sql}");
-        self.inner()
+        self.inner_mut()
             .execute(sqlx::raw_sql(&sql))
             .await
             .map_err(SqlxError::from)?;
         Ok(())
     }
 
-    async fn check_history(&mut self, history: HistoryTable) -> TernResult<()> {
+    async fn history_exists(
+        &mut self,
+        history: RelationId,
+    ) -> TernResult<bool> {
         let sql = Db::check_history(history);
         log::trace!("running {sql}");
         let exists: bool = sqlx::query_scalar(&sql)
-            .fetch_one(self.inner())
+            .fetch_one(self.inner_mut())
             .await
             .map_err(SqlxError::from)?;
-        if exists {
-            Ok(())
-        } else {
-            Err(TernError::History("history table not found"))
-        }
+        Ok(exists)
     }
 
-    async fn get_all_applied(
+    async fn select_where_version_between(
         &mut self,
-        history: HistoryTable,
+        history: RelationId,
+        min_version: Option<i64>,
+        max_version: Option<i64>,
     ) -> TernResult<Vec<MigrationData>> {
-        let sql = Db::get_all_applied_query(history);
+        let minv = min_version.unwrap_or(i64::MIN);
+        let maxv = max_version.unwrap_or(i64::MAX);
+        let sql = Db::get_applied_where_query(history, None, None);
         log::trace!("running {sql}");
         let applied = sqlx::query_as::<Db, MigrationData>(&sql)
-            .fetch_all(self.inner())
+            .bind(minv)
+            .bind(maxv)
+            .fetch_all(self.inner_mut())
             .await
             .map_err(SqlxError::from)?;
         Ok(applied)
     }
 
-    async fn insert_applied(
+    async fn insert_into(
         &mut self,
-        history: HistoryTable,
+        history: RelationId,
         applied: &MigrationData,
     ) -> TernResult<()> {
         let sql = Db::insert_applied_query(history, applied);
         log::trace!("running {sql}");
         sqlx::query::<Db>(&sql)
             .bind(applied.version())
-            .bind(applied.description())
-            .bind(applied.content())
+            .bind(applied.description().to_string())
+            .bind(applied.content().to_string())
             .bind(applied.duration_millis())
             .bind(applied.applied_at())
-            .execute(self.inner())
+            .execute(self.inner_mut())
             .await
             .map_err(SqlxError::from)?;
         Ok(())
     }
 
-    async fn delete_applied(
+    async fn delete_from(
         &mut self,
-        history: HistoryTable,
+        history: RelationId,
         version: i64,
     ) -> TernResult<()> {
         let sql = Db::delete_applied_query(history, version);
         log::trace!("running {sql}");
         sqlx::query::<Db>(&sql)
             .bind(version)
-            .execute(self.inner())
+            .execute(self.inner_mut())
             .await
             .map_err(SqlxError::from)?;
         Ok(())
     }
 
-    async fn upsert_applied(
+    async fn insert_or_update(
         &mut self,
-        history: HistoryTable,
+        history: RelationId,
         applied: &MigrationData,
     ) -> TernResult<()> {
         let sql = Db::upsert_applied_query(history, applied);
         log::trace!("running {sql}");
         sqlx::query::<Db>(&sql)
             .bind(applied.version())
-            .bind(applied.description())
-            .bind(applied.content())
+            .bind(applied.description().to_string())
+            .bind(applied.content().to_string())
             .bind(applied.duration_millis())
             .bind(applied.applied_at())
-            .execute(self.inner())
+            .execute(self.inner_mut())
             .await
             .map_err(SqlxError::from)?;
         Ok(())
-    }
-}
-
-impl<Db: Database> Clone for SqlxAnyExecutor<Db> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }

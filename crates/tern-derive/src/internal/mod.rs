@@ -6,12 +6,10 @@ use syn::spanned::Spanned;
 pub(crate) mod ast;
 
 mod source_file;
-
 pub(crate) use source_file::SourceFile;
 
 mod source_mods;
-
-pub(crate) use source_mods::SourceMods;
+pub(crate) use source_mods::{SourceMap, SourceMods};
 
 /// A map_err/ok_or_else to syn::Error convenience.
 pub(crate) trait IntoResult<T>: Sized {

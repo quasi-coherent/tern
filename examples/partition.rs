@@ -1,6 +1,5 @@
 use simplelog::{Config, LevelFilter, SimpleLogger};
-use tern::Tern;
-use tern::executor::ConnOpt;
+use tern::TernCli;
 
 pub mod partition_lib;
 use partition_lib::PartitionExample;
@@ -9,7 +8,11 @@ use partition_lib::PartitionExample;
 async fn main() {
     let _ = SimpleLogger::init(LevelFilter::Debug, Config::default());
 
-    match Tern::<PartitionExample>::run_options::<ConnOpt>().await {
+    let app = TernCli::try_init_with(PartitionExample::new)
+        .await
+        .expect("Could not construct CLI");
+
+    match app.run().await {
         Ok(complete) => println!("{complete}"),
         Err(e) => {
             println!("{e}");

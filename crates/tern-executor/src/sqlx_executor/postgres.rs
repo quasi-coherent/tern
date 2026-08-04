@@ -1,11 +1,10 @@
 use sqlx::postgres::Postgres;
-use tern_core::migration::{HistoryTable, MigrationData};
+use tern_core::context::RelationId;
+use tern_core::migration::MigrationData;
 
 use crate::backend::ExecutorBackend;
 use crate::backend::postgres::PgBackend;
 use crate::sqlx_executor::{SqlxAnyExecutor, SqlxAnyExecutorOptions};
-
-pub use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 
 /// `MigrationExecutor` for a PostgreSQL backend.
 pub type SqlxPgExecutor = SqlxAnyExecutor<Postgres>;
@@ -14,26 +13,43 @@ pub type SqlxPgExecutor = SqlxAnyExecutor<Postgres>;
 pub type SqlxPgExecutorOptions = SqlxAnyExecutorOptions<Postgres>;
 
 impl ExecutorBackend for Postgres {
-    fn check_history(history: HistoryTable) -> String {
+    fn check_history(history: RelationId) -> String {
         PgBackend::check_history(history)
     }
 
-    fn init_history_query(history: HistoryTable) -> String {
+    fn init_history_query(history: RelationId) -> String {
         PgBackend::init_history_query(history)
     }
 
-    fn drop_history_query(history: HistoryTable) -> String {
+    fn drop_history_query(history: RelationId) -> String {
         PgBackend::drop_history_query(history)
     }
 
-    fn get_all_applied_query(history: HistoryTable) -> String {
-        PgBackend::get_all_applied_query(history)
+    fn get_applied_where_query(
+        history: RelationId,
+        _: Option<i64>,
+        _: Option<i64>,
+    ) -> String {
+        // The bound values in sqlx::query are i64, not Option<i64>.
+        format!(
+            "
+SELECT
+  version,
+  description,
+  content,
+  duration_ms,
+  applied_at
+FROM {history}
+WHERE
+  version >= $1
+  AND version <= $2
+ORDER BY
+  version;
+"
+        )
     }
 
-    fn insert_applied_query(
-        history: HistoryTable,
-        _: &MigrationData,
-    ) -> String {
+    fn insert_applied_query(history: RelationId, _: &MigrationData) -> String {
         format!(
             "
 INSERT INTO {history}(version, description, content, duration_ms, applied_at)
@@ -42,7 +58,7 @@ INSERT INTO {history}(version, description, content, duration_ms, applied_at)
         )
     }
 
-    fn delete_applied_query(history: HistoryTable, _: i64) -> String {
+    fn delete_applied_query(history: RelationId, _: i64) -> String {
         format!(
             "
 DELETE FROM {history}
@@ -51,10 +67,7 @@ WHERE version = $1;
         )
     }
 
-    fn upsert_applied_query(
-        history: HistoryTable,
-        _: &MigrationData,
-    ) -> String {
+    fn upsert_applied_query(history: RelationId, _: &MigrationData) -> String {
         format!(
             "
 INSERT INTO {history}(version, description, content, duration_ms, applied_at)

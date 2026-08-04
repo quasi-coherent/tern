@@ -47,8 +47,8 @@ impl ResolveMigration for CreateNameIdx {
                 acc.push_sql(self.child_idx(partition));
                 acc
             })
-            .into_reader()
+            .build()
             .with_notx() // Return a query that does not run in a transaction
-            .read_into()
+            .read_query()
     }
 }

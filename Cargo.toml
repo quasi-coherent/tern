@@ -2,6 +2,9 @@
 members = [".", "crates/*"]
 default-members = ["."]
 
+[workspace.metadata.crane]
+name = "tern"
+
 [workspace.package]
 version = "4.0.0-rc1"
 license = "MIT OR Apache-2.0"
@@ -11,8 +14,32 @@ authors = ["Daniel Donohue <d.michael.donohue@gmail.com>"]
 keywords = ["database", "migrations", "postgres", "mysql", "sqlite"]
 categories = ["database"]
 
-[workspace.metadata.crane]
-name = "tern"
+[workspace.dependencies]
+tern-cli = { version = "=4.0.0-rc1", path = "crates/tern-cli" }
+tern-core = { version = "=4.0.0-rc1", path = "crates/tern-core" }
+tern-derive = { version = "=4.0.0-rc1", path = "crates/tern-derive" }
+tern-executor = { version = "=4.0.0-rc1", path = "crates/tern-executor" }
+tern-test = { version = "=4.0.0-rc1", path = "crates/tern-test" }
+
+chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.1", features = ["derive"] }
+console = "0.16.3"
+futures-core = "0.3.32"
+futures-util = "0.3.32"
+log = "0.4.29"
+regex = "1.12.3"
+thiserror = "2.0"
+url = "2.5.7"
+
+[workspace.dependencies.sqlx]
+default-features = false
+features = ["chrono", "macros"]
+version = "0.8.6"
+
+[workspace.dependencies.tokio]
+default-features = false
+features = ["macros", "rt", "rt-multi-thread"]
+version = "1.0"
 
 [package]
 name = "tern"
@@ -33,72 +60,58 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = []
+default = ["cli"]
 
 cli = ["dep:clap", "tern-cli"]
 
-sqlx_mysql = ["_sqlx", "tern-executor/sqlx_mysql"]
-sqlx_postgres = ["_sqlx", "tern-executor/sqlx_postgres"]
-sqlx_sqlite = ["_sqlx", "tern-executor/sqlx_sqlite"]
+# For conditional compilation.
 _sqlx = ["dep:sqlx", "tern-core/sqlx"]
+sqlx_mysql = ["_sqlx", "tern-executor/sqlx_mysql", "tern-test?/sqlx_mysql"]
+sqlx_postgres = [
+  "_sqlx",
+  "tern-executor/sqlx_postgres",
+  "tern-test?/sqlx_postgres",
+]
+sqlx_sqlite = ["_sqlx", "tern-executor/sqlx_sqlite", "tern-test?/sqlx_sqlite"]
+sqlx_all = ["sqlx_mysql", "sqlx_postgres", "sqlx_sqlite"]
+
+testing = ["dep:tern-test"]
 
 [dependencies]
 tern-cli = { workspace = true, optional = true }
 tern-core = { workspace = true }
 tern-derive = { workspace = true }
 tern-executor = { workspace = true }
+tern-test = { workspace = true, optional = true }
 
 chrono = { workspace = true }
 clap = { workspace = true, optional = true }
 console = { workspace = true }
 futures-core = { workspace = true }
+futures-util = { workspace = true }
 log = { workspace = true, features = ["kv"] }
 sqlx = { workspace = true, optional = true }
 thiserror = { workspace = true }
-
-[workspace.dependencies]
-chrono = { version = "0.4.44", features = ["serde"] }
-clap = { version = "4.6.1", features = ["derive"] }
-console = "0.16.3"
-futures-core = "0.3.32"
-log = "0.4.29"
-regex = "1.12.3"
-thiserror = "2.0"
-
-tern-cli = { version = "=4.0.0-rc1", path = "crates/tern-cli" }
-tern-core = { version = "=4.0.0-rc1", path = "crates/tern-core" }
-tern-derive = { version = "=4.0.0-rc1", path = "crates/tern-derive" }
-tern-executor = { version = "=4.0.0-rc1", path = "crates/tern-executor" }
-
-[workspace.dependencies.sqlx]
-default-features = false
-features = ["chrono", "macros"]
-version = "0.8.6"
-
-[workspace.dependencies.tokio]
-default-features = false
-features = ["macros", "rt", "rt-multi-thread"]
-version = "1.0"
+url = { workspace = true }
 
 [dev-dependencies]
 simplelog = "0.12.2"
 sqlx = { workspace = true, features = ["runtime-tokio"] }
-tern = { path = ".", features = ["cli"] }
+tern = { path = ".", features = ["cli", "testing", "sqlx_all"] }
 thiserror = { workspace = true }
-
-[dev-dependencies.tokio]
-version = "1.0"
-default-features = false
-features = ["macros", "rt", "rt-multi-thread"]
+tokio = { workspace = true }
 
 [[example]]
 name = "simple"
-required-features = ["cli", "sqlx_postgres"]
 
 [[example]]
 name = "partition"
-required-features = ["cli", "sqlx_postgres"]
 
 [[test]]
-name = "derive"
-required-features = ["sqlx_postgres"]
+name = "pg"
+
+[[test]]
+name = "mysql"
+
+[[test]]
+name = "sqlite"

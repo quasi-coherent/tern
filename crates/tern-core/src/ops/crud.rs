@@ -1,8 +1,8 @@
 //! CRUD operations on the records of the history table.
-use crate::context::{MigrationContext, MigrationExecutor};
+use crate::context::{MigrationContext, MigrationExecutor as _};
 use crate::error::TernResult;
 use crate::migration::MigrationData;
-use crate::ops::MigrationOp;
+use crate::ops::Operation;
 
 /// An operation for inserting an applied migration into the history table.
 #[derive(Debug)]
@@ -15,14 +15,14 @@ impl<'a, Ctx: MigrationContext> InsertApplied<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<&MigrationData>
+impl<Ctx: MigrationContext> Operation<&MigrationData>
     for InsertApplied<'_, Ctx>
 {
     type Output = TernResult<()>;
 
     async fn exec(self, input: &MigrationData) -> Self::Output {
         let history = self.0.history_table();
-        self.0.executor_mut().insert_applied(history, input).await?;
+        self.0.executor_mut().insert_into(history, input).await?;
         log::debug!(version:% = input.version(); "inserted applied");
         Ok(())
     }
@@ -39,24 +39,22 @@ impl<'a, Ctx: MigrationContext> ReadAppliedWhere<'a, Ctx> {
     }
 }
 
-impl<'a, F, Ctx> MigrationOp<F> for ReadAppliedWhere<'a, Ctx>
+impl<'a, Ctx> Operation<(Option<i64>, Option<i64>)>
+    for ReadAppliedWhere<'a, Ctx>
 where
     Ctx: MigrationContext,
-    F: FnMut(&MigrationData) -> bool + Send + 'a,
 {
     type Output = TernResult<Vec<MigrationData>>;
 
-    async fn exec(self, args: F) -> Self::Output {
+    async fn exec(
+        self,
+        (min_version, max_version): (Option<i64>, Option<i64>),
+    ) -> Self::Output {
         let history = self.0.history_table();
-        let applied = self
-            .0
+        self.0
             .executor_mut()
-            .get_all_applied(history)
-            .await?
-            .into_iter()
-            .filter(args)
-            .collect();
-        Ok(applied)
+            .select_where_version_between(history, min_version, max_version)
+            .await
     }
 }
 
@@ -71,14 +69,14 @@ impl<'a, Ctx: MigrationContext> UpdateApplied<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<&MigrationData>
+impl<Ctx: MigrationContext> Operation<&MigrationData>
     for UpdateApplied<'_, Ctx>
 {
     type Output = TernResult<()>;
 
     async fn exec(self, input: &MigrationData) -> Self::Output {
         let history = self.0.history_table();
-        self.0.executor_mut().upsert_applied(history, input).await?;
+        self.0.executor_mut().insert_or_update(history, input).await?;
         log::debug!(version:% = input.version(); "updated applied");
         Ok(())
     }
@@ -95,7 +93,7 @@ impl<'a, Ctx: MigrationContext> DeleteApplied<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<&MigrationData>
+impl<Ctx: MigrationContext> Operation<&MigrationData>
     for DeleteApplied<'_, Ctx>
 {
     type Output = TernResult<()>;
@@ -103,7 +101,7 @@ impl<Ctx: MigrationContext> MigrationOp<&MigrationData>
     async fn exec(self, input: &MigrationData) -> Self::Output {
         let version = input.version();
         let history = self.0.history_table();
-        self.0.executor_mut().delete_applied(history, version).await?;
+        self.0.executor_mut().delete_from(history, version).await?;
         log::debug!(version:%; "deleted applied");
         Ok(())
     }

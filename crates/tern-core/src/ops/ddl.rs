@@ -1,32 +1,33 @@
 //! Operations with history table DDL.
-use crate::context::{MigrationContext, MigrationExecutor};
+use crate::context::{MigrationContext, MigrationExecutor as _, RelationId};
 use crate::error::{TernError, TernResult};
-use crate::ops::MigrationOp;
+use crate::ops::Operation;
 
 /// An operation for creating a `tern` project and history table.
 #[derive(Debug)]
-pub struct Init<'a, Ctx>(&'a mut Ctx);
+pub struct CreateIfNotExists<'a, Ctx>(&'a mut Ctx);
 
-impl<'a, Ctx: MigrationContext> Init<'a, Ctx> {
-    /// New `Init` operation.
+impl<'a, Ctx: MigrationContext> CreateIfNotExists<'a, Ctx> {
+    /// New `CreateIfNotExists` operation.
     pub fn new(ctx: &'a mut Ctx) -> Self {
         Self(ctx)
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<()> for Init<'_, Ctx> {
+impl<Ctx: MigrationContext> Operation<RelationId>
+    for CreateIfNotExists<'_, Ctx>
+{
     type Output = TernResult<()>;
 
-    async fn exec(self, _: ()) -> Self::Output {
-        let history = self.0.history_table();
-        // Check if the history table already exists:
-        if self.0.executor_mut().check_history(history).await.is_ok() {
-            log::error!(namespace:% = history; "table already exists");
+    async fn exec(self, history: RelationId) -> Self::Output {
+        let exec = self.0.executor_mut();
+        if exec.history_exists(history).await.is_ok_and(std::convert::identity)
+        {
             return Err(TernError::History(
-                "init failed: history table exists",
+                "new history failed: history table exists",
             ))?;
-        }
-        self.0.executor_mut().init_history(history).await?;
+        };
+        exec.create_if_not_exists(history).await?;
         log::debug!(namespace:% = history; "created history table");
         Ok(())
     }
@@ -43,17 +44,16 @@ impl<'a, Ctx: MigrationContext> DropIfExists<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<()> for DropIfExists<'_, Ctx> {
+impl<Ctx: MigrationContext> Operation<RelationId> for DropIfExists<'_, Ctx> {
     type Output = TernResult<()>;
 
-    async fn exec(self, _input: ()) -> Self::Output {
-        let history = self.0.history_table();
-        // Check if the history table exists:
-        if self.0.executor_mut().check_history(history).await.is_ok() {
+    async fn exec(self, history: RelationId) -> Self::Output {
+        let exec = self.0.executor_mut();
+        if !exec.history_exists(history).await? {
             log::warn!(namespace:% = history; "history table does not exist");
             return Ok(());
         }
-        self.0.executor_mut().drop_history(history).await?;
+        exec.drop_if_exists(history).await?;
         log::debug!(namespace:% = history; "dropped history table");
         Ok(())
     }
