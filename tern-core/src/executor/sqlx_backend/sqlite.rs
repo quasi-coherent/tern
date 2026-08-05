@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS {history_table}(
   description text NOT NULL,
   content text NOT NULL,
   duration_ms bigint NOT NULL,
-  applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 "
         );

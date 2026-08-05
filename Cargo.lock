@@ -1564,7 +1564,7 @@ dependencies = [
 
 [[package]]
 name = "tern"
-version = "3.1.5"
+version = "3.1.6"
 dependencies = [
  "anyhow",
  "env_logger",
@@ -1576,7 +1576,7 @@ dependencies = [
 
 [[package]]
 name = "tern-cli"
-version = "3.1.5"
+version = "3.1.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -1587,7 +1587,7 @@ dependencies = [
 
 [[package]]
 name = "tern-core"
-version = "3.1.5"
+version = "3.1.6"
 dependencies = [
  "chrono",
  "display_json",
@@ -1602,7 +1602,7 @@ dependencies = [
 
 [[package]]
 name = "tern-derive"
-version = "3.1.5"
+version = "3.1.6"
 dependencies = [
  "proc-macro2",
  "quote",
