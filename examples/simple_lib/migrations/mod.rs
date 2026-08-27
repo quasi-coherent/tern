@@ -3,8 +3,10 @@
 //!
 //! [`TernApp`]: tern::TernApp
 use tern::error::TernResult;
-use tern::executor::{ConnStr, SqlxError, SqlxPgExecutor, sqlx};
-use tern::{ExecutorOptions, TernApp};
+use tern::exec::{ConnStr, SqlxError, SqlxPgExecutor, sqlx};
+// TODO(tern-derive rework): re-add `use tern::TernApp;` when the derive below
+// is re-enabled. `tern::ExecutorOptions` was removed in the 4.0 refactor (per-
+// backend `Sqlx*ExecutorOptions` now live in `tern::exec`) and was unused here.
 
 use super::ExampleError;
 
@@ -25,9 +27,13 @@ use super::ExampleError;
 ///
 /// This is very contrived, but demonstrates the capability.
 ///
-/// [`MigrationExecutor`]: tern::executor::MigrationExecutor
-#[derive(Debug, TernApp)]
-#[tern(source = "examples/simple_lib/migrations", table = "_simple_history")]
+/// [`MigrationExecutor`]: tern::exec::MigrationExecutor
+// TODO(tern-derive rework): re-enable the `TernApp` derive (and the `#[tern]`
+// attrs, including `#[tern(executor_via)]` on `exec` below) once the macro
+// emits the new core API.
+#[derive(Debug)]
+// #[derive(Debug, TernApp)]
+// #[tern(source = "examples/simple_lib/migrations", table = "_simple_history")]
 pub struct SimpleExample {
     /// The type that impls `MigrationExecutor`.  This can be created using the
     /// [`ConnStr`] type.
@@ -35,8 +41,8 @@ pub struct SimpleExample {
     /// This is the minimum required of a `TernApp` and beyond this practically
     /// any number of any other type of value can be added.
     ///
-    /// [`ConnStr`]: tern::executor::sqlx::ConnStr
-    #[tern(executor_via)]
+    /// [`ConnStr`]: tern::exec::ConnStr
+    // #[tern(executor_via)]
     pub exec: SqlxPgExecutor,
     /// Whatever the heart desires.
     pub env: GetEnvVar,

@@ -4,10 +4,13 @@ chk *args:
     nix flake check {{args}}
 
 bld *args:
-    nix build .#checks.{{system}}.tern {{args}}
+    nix build .#packages.{{system}}.default {{args}}
 
 fmtt *args:
     fmtt {{args}}
+
+reload *args:
+    nix build .#devShells.{{system}}.default {{args}}
 
 upd-rs:
     nix flake update fenix

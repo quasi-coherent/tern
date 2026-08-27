@@ -11,7 +11,7 @@ use tern_cli::ConnOpt;
 use tern_core::error::TernResult;
 use tern_core::migration::Migration;
 
-use crate::app::{Tern, TernApp};
+use crate::app::{Tern, TernApp, AppOptions};
 use crate::ops::{self, OpComplete, OpResult};
 
 #[doc(hidden)]
@@ -23,7 +23,7 @@ pub extern crate clap;
 // other things that a clap parser can display in help menus and so on...
 // At least as far as I can tell.  There are proc macro crates in varying forms
 // of "abandoned toy project" but we can't use proc macros because where we're
-// putting this data is from a proc macro.
+// using this is in the proc macros from `clap`.
 const USER_CRATE: &str = env!("CARGO_CRATE_NAME");
 
 const HELP_STYLES: Styles = Styles::styled()
@@ -42,13 +42,13 @@ where
 {
     /// Create the CLI to a `TernApp`.
     ///
-    /// This requires that [`TernApp::Options`] be translated to CLI options via
-    /// the [`clap::Args`] interface for this `T`.
-    pub async fn try_init() -> TernResult<TernCli<T>>
+    /// A type annotation is required to specify what custom type is being
+    /// provided on the command line in order to construct the `TernApp`.
+    pub async fn try_init<C>() -> TernResult<TernCli<T>>
     where
-        T::Options: Args,
+        C: AppOptions<App = T> + Args,
     {
-        let Opt { command, conn, options } = Opt::<T::Options>::parse();
+        let Opt { command, conn, options } = Opt::<C>::parse();
         let conn = conn.get_db_url()?;
         let app = Tern::init(&conn, options).await?;
         Ok(TernCli(app, command))

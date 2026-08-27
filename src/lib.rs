@@ -34,7 +34,7 @@ pub use tern_derive::{Migration, TernApp};
 
 #[cfg(feature = "testing")]
 #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
-pub use tern_derive::{test, test_suite};
+pub use tern_derive::TernTest;
 
 // Symbols needed by proc macros.
 #[doc(hidden)]

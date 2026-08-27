@@ -1,4 +1,5 @@
 use futures_core::future::BoxFuture;
+use std::collections::BTreeMap;
 use tern_core::context::MigrationContext;
 use tern_core::error::{TernError, TernResult};
 use tern_core::migration::{Migration, MigrationId};
@@ -40,52 +41,57 @@ impl<Ctx: MigrationContext> Migration for MigrationBox<Ctx> {
 
 /// A `MigrationBoxSet` is an iterator over dynamically-typed `Migration`s.
 pub struct MigrationBoxSet<Ctx> {
-    inner: Vec<MigrationBox<Ctx>>,
-    version: i64,
+    inner: BTreeMap<i64, MigrationBox<Ctx>>,
 }
 
 impl<Ctx> Default for MigrationBoxSet<Ctx> {
     fn default() -> Self {
-        Self { inner: Vec::new(), version: 0 }
+        Self { inner: BTreeMap::new() }
     }
 }
 
 impl<Ctx: MigrationContext> MigrationBoxSet<Ctx> {
-    /// New empty migration set.
-    pub fn new() -> Self {
-        Self::default()
+    /// New migration set from an iterator of [`MigrationBox`] values.
+    ///
+    /// Use [`MigrationBoxSet::try_insert`] for perhaps a more ergonomic way to
+    /// build the value.
+    pub fn try_new<I>(iter: I) -> TernResult<Self>
+    where
+        I: IntoIterator<Item = MigrationBox<Ctx>>,
+    {
+        iter.into_iter().try_fold(Self::default(), |mut acc, m| {
+            let v = m.version();
+            if let Some(dup) = acc.inner.insert(v, m) {
+                return Err(TernError::Duplicate(dup.version()));
+            }
+            Ok(acc)
+        })
     }
 
-    /// Add the next migration to the set.
+    /// New migration set from an iterator of generic [`Migration`]s.
+    pub fn try_from_iter<I>(iter: I) -> TernResult<Self>
+    where
+        I: IntoIterator<Item: Migration<Ctx = Ctx> + 'static>,
+    {
+        iter.into_iter().try_fold(Self::default(), |acc, m| acc.try_insert(m))
+    }
+
+    /// Insert the migration into this migration set.
     ///
     /// # Errors
     ///
-    /// This returns an error if the version is not the next version.
-    pub fn add<M: Migration<Ctx = Ctx> + 'static>(
+    /// An error is returned if the set contains a migration with the same
+    /// version.
+    pub fn try_insert<M: Migration<Ctx = Ctx> + 'static>(
         mut self,
         migration: M,
     ) -> TernResult<Self> {
-        if let v = migration.version()
-            && let e = self.version + 1
-            && v != e
-        {
-            return Err(TernError::Invalid(format!("got {v} expected {e}")));
+        let key = migration.version();
+        let value = MigrationBox::new(migration);
+        if let Some(v) = self.inner.insert(key, value) {
+            return Err(TernError::Duplicate(v.version()));
         }
-        self.inner.push(MigrationBox::new(migration));
-        self.version += 1;
         Ok(self)
-    }
-
-    /// Add the next migration without checking validity of the version.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the version is not the next version.
-    pub fn add_unchecked<M: Migration<Ctx = Ctx> + 'static>(
-        self,
-        migration: M,
-    ) -> Self {
-        self.add(migration).expect("unchecked version mismatch")
     }
 
     /// Return the number of migrations in this migration set.
@@ -94,51 +100,44 @@ impl<Ctx: MigrationContext> MigrationBoxSet<Ctx> {
     }
 
     /// Return the latest version added.
-    pub fn version(&self) -> i64 {
-        self.version
+    ///
+    /// `None` if this migration set has no migrations.
+    pub fn version(&self) -> Option<i64> {
+        self.inner.last_key_value().and_then(|(k, _)| Some(*k))
     }
 }
 
-impl<Ctx: MigrationContext, M: Migration<Ctx = Ctx> + 'static> FromIterator<M>
-    for MigrationBoxSet<Ctx>
-{
-    fn from_iter<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = M>,
-    {
-        let (version, inner) =
-            iter.into_iter().fold((0, Vec::new()), |(v, mut acc), m| {
-                let newv = if v < m.version() { m.version() } else { v };
-                let boxm = MigrationBox::new(m);
-                acc.push(boxm);
-                (newv, acc)
-            });
-        Self { inner, version }
+/// `MigrationBoxSet` iterator.
+pub mod migration_box_set {
+    use std::collections::btree_map::IntoIter;
+
+    use super::*;
+
+    /// An iterator of `MigrationBox`.
+    pub struct IterMigrate<Ctx>(IntoIter<i64, MigrationBox<Ctx>>);
+
+    impl<Ctx: MigrationContext> IntoIterator for MigrationBoxSet<Ctx> {
+        type IntoIter = IterMigrate<Ctx>;
+        type Item = MigrationBox<Ctx>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            IterMigrate(self.inner.into_iter())
+        }
     }
-}
 
-impl<Ctx: MigrationContext> IntoIterator for MigrationBoxSet<Ctx> {
-    type IntoIter = IterMigrate<Ctx>;
-    type Item = MigrationBox<Ctx>;
+    impl<Ctx: MigrationContext> Iterator for IterMigrate<Ctx> {
+        type Item = MigrationBox<Ctx>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        IterMigrate(self.inner.into_iter())
+        fn next(&mut self) -> Option<Self::Item> {
+            let (_, v) = self.0.next()?;
+            Some(v)
+        }
     }
-}
 
-/// A set of up migrations.
-pub struct IterMigrate<Ctx>(std::vec::IntoIter<MigrationBox<Ctx>>);
-
-impl<Ctx: MigrationContext> Iterator for IterMigrate<Ctx> {
-    type Item = MigrationBox<Ctx>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-impl<Ctx: MigrationContext> DoubleEndedIterator for IterMigrate<Ctx> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.0.next_back()
+    impl<Ctx: MigrationContext> DoubleEndedIterator for IterMigrate<Ctx> {
+        fn next_back(&mut self) -> Option<Self::Item> {
+            let (_, v) = self.0.next_back()?;
+            Some(v)
+        }
     }
 }

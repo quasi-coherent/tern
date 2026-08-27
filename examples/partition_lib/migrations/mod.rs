@@ -1,16 +1,22 @@
 use std::fmt::{self, Display, Formatter};
-use tern::executor::sqlx::{self, FromRow};
-use tern::executor::{ConnStr, SqlxError, SqlxPgExecutor};
-use tern::{TernApp, TernResult};
+use tern::TernResult;
+use tern::exec::sqlx::{self, FromRow};
+use tern::exec::{ConnStr, SqlxError, SqlxPgExecutor};
+// TODO(tern-derive rework): re-add `use tern::TernApp;` when the derive below
+// is re-enabled.
 
 /// The `TernApp` for our partitioned table example.
-#[derive(Debug, TernApp)]
-#[tern(
-    source = "examples/partition_lib/migrations",
-    table = "_partition_history"
-)]
+// TODO(tern-derive rework): re-enable the `TernApp` derive (and the `#[tern]`
+// attrs, including `#[tern(executor_via)]` on `exec` below) once the macro
+// emits the new core API.
+#[derive(Debug)]
+// #[derive(Debug, TernApp)]
+// #[tern(
+//     source = "examples/partition_lib/migrations",
+//     table = "_partition_history"
+// )]
 pub struct PartitionExample {
-    #[tern(executor_via)]
+    // #[tern(executor_via)]
     pub exec: SqlxPgExecutor,
 }
 
