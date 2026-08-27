@@ -1,11 +1,11 @@
 use tern_core::context::{MigrationContext, MigrationExecutor as _};
 use tern_core::error::TernError;
-use tern_core::migration::Migration;
+use tern_core::migration::Migration as _;
 use tern_core::migration::iter::MigrationSetExt as _;
 use tern_core::ops::Operation;
 use tern_core::ops::migration::RevertOne;
 
-use crate::migration::{MigrationBox, MigrationBoxSet};
+use crate::migration::MigrationBoxSet;
 use crate::ops::result::{CollectOp, OpResult};
 
 /// Arguments for the `Revert` operation.
@@ -60,14 +60,6 @@ impl RevertArgs {
         self.dryrun
     }
 
-    fn filter<Ctx: MigrationContext>(
-        &self,
-        latest: i64,
-        m: &MigrationBox<Ctx>,
-    ) -> bool {
-        m.version() <= latest && m.version() >= self.to
-    }
-
     fn new_revert_one<'a, Ctx>(&self, ctx: &'a mut Ctx) -> RevertOne<'a, Ctx> {
         let revert = if self.get_soft_revert() {
             RevertOne::new(ctx).soft_revert()
@@ -89,11 +81,8 @@ pub struct RevertInput<Ctx> {
 
 impl<Ctx: MigrationContext> RevertInput<Ctx> {
     /// New `Revert` input.
-    pub fn new<I>(iter: I, args: RevertArgs) -> Self
-    where
-        I: DoubleEndedIterator<Item: Migration<Ctx = Ctx> + 'static>,
-    {
-        Self { set: iter.collect(), args }
+    pub fn new(set: MigrationBoxSet<Ctx>, args: RevertArgs) -> Self {
+        Self { set, args }
     }
 }
 
@@ -128,10 +117,10 @@ impl<Ctx: MigrationContext + 'static> Operation<RevertInput<Ctx>>
 
         // The down migration subset selected necessarily has max version equal
         // to the latest applied.
-        if set.version() != latest {
+        if set.version().is_none_or(|v| v != latest) {
             return Err(TernError::Invalid(format!(
                 "version error: last applied: {latest}, last from selection: {}",
-                set.version(),
+                set.version().unwrap_or_default(),
             )))?;
         }
 

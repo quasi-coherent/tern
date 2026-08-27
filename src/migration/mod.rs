@@ -6,18 +6,18 @@
 use futures_core::future::BoxFuture;
 use tern_core::context::MigrationContext;
 use tern_core::error::TernResult;
-use tern_core::query::Query;
 
-pub use tern_core::context::RelationId;
+pub use tern_core::context::HistoryRelid;
 pub use tern_core::migration::{MigrationData, MigrationId};
+#[doc(inline)]
+pub use tern_core::query::{self, Query, QueryBuilder};
 
 mod boxed;
-pub use boxed::{MigrationBox, MigrationBoxSet};
+pub use boxed::{MigrationBox, MigrationBoxSet, migration_box_set};
 
 /// A helper trait for migration queries.
 ///
-/// Provide by-hand where a type derives [`Migration`] to complete the
-/// implementation.
+/// Required of a type that derives `Migration`.
 pub trait ResolveQuery {
     /// The context associated with the migration this query is for.
     type Ctx: MigrationContext;
@@ -32,15 +32,18 @@ pub trait ResolveQuery {
         &'a self,
         ctx: &'a mut Self::Ctx,
     ) -> BoxFuture<'a, TernResult<Query>>;
+}
 
-    /// Future resolving to the down migration query if defined.
+/// A helper trait for migration queries.
+///
+/// Required of a type that derives `Migration` and is part of an up/down set of
+/// migrations.
+pub trait ResolveRevertQuery: ResolveQuery {
+    /// Future resolving to the down migration query.
     ///
-    /// The provided implementation returns `Ok(None)`.  Override to supply a
-    /// down migration query partner.
+    /// This should revert the effect of [`ResolveQuery::resolve_query`].
     fn resolve_revert_query<'a>(
         &'a self,
-        #[allow(unused_variables)] ctx: &'a mut Self::Ctx,
-    ) -> BoxFuture<'a, TernResult<Option<Query>>> {
-        Box::pin(core::future::ready(Ok(None)))
-    }
+        ctx: &'a mut Self::Ctx,
+    ) -> BoxFuture<'a, TernResult<Query>>;
 }

@@ -1,6 +1,6 @@
 use chrono::Utc;
 use tern_core::context::{MigrationContext, MigrationExecutor as _};
-use tern_core::migration::{Migration, MigrationData};
+use tern_core::migration::{Migration as _, MigrationData};
 use tern_core::ops::Operation;
 use tern_core::ops::migration::StaticQuery;
 
@@ -81,11 +81,8 @@ pub struct ListInput<Ctx> {
 
 impl<Ctx: MigrationContext> ListInput<Ctx> {
     /// New `ListInput`.
-    pub fn new<I>(iter: I, args: ListArgs) -> Self
-    where
-        I: Iterator<Item: Migration<Ctx = Ctx> + 'static>,
-    {
-        Self { set: iter.collect(), args }
+    pub fn new(set: MigrationBoxSet<Ctx>, args: ListArgs) -> Self {
+        Self { set, args }
     }
 }
 

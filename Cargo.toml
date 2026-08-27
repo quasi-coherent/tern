@@ -1,5 +1,6 @@
 [workspace]
-members = [".", "crates/*"]
+
+members = [".", "tern-cli", "tern-core", "tern-derive", "tern-executor", "tern-test"]
 default-members = ["."]
 
 [workspace.metadata.crane]
@@ -15,11 +16,11 @@ keywords = ["database", "migrations", "postgres", "mysql", "sqlite"]
 categories = ["database"]
 
 [workspace.dependencies]
-tern-cli = { version = "=4.0.0-rc1", path = "crates/tern-cli" }
-tern-core = { version = "=4.0.0-rc1", path = "crates/tern-core" }
-tern-derive = { version = "=4.0.0-rc1", path = "crates/tern-derive" }
-tern-executor = { version = "=4.0.0-rc1", path = "crates/tern-executor" }
-tern-test = { version = "=4.0.0-rc1", path = "crates/tern-test" }
+tern-cli = { version = "=4.0.0-rc1", path = "tern-cli" }
+tern-core = { version = "=4.0.0-rc1", path = "tern-core" }
+tern-derive = { version = "=4.0.0-rc1", path = "tern-derive" }
+tern-executor = { version = "=4.0.0-rc1", path = "tern-executor" }
+tern-test = { version = "=4.0.0-rc1", path = "tern-test" }
 
 chrono = { version = "0.4.44", features = ["serde"] }
 clap = { version = "4.6.1", features = ["derive"] }

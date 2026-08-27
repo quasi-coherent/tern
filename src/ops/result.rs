@@ -45,16 +45,6 @@ impl CollectOp {
 #[derive(Clone, Debug, Default)]
 pub struct OpComplete(Vec<OpSuccess>);
 
-impl IntoIterator for OpComplete {
-    type IntoIter = iter::IterOp;
-    type Item = OpSuccess;
-
-    fn into_iter(mut self) -> Self::IntoIter {
-        self.0.sort_by_key(|v| -v.version);
-        iter::IterOp(self.0)
-    }
-}
-
 impl FromIterator<OpSuccess> for OpComplete {
     fn from_iter<T: IntoIterator<Item = OpSuccess>>(iter: T) -> Self {
         Self(iter.into_iter().collect())
@@ -228,13 +218,30 @@ impl MigrationError for OpError {
     }
 }
 
-#[doc(hidden)]
-pub mod iter {
+/// Iterator from a successful operation.
+pub mod op_complete {
     use super::*;
 
-    pub struct IterOp(pub(super) Vec<OpSuccess>);
+    /// Iterator of `OpSuccess` values.
+    pub struct IterOpComplete(Vec<OpSuccess>);
 
-    impl Iterator for IterOp {
+    impl IntoIterator for OpComplete {
+        type IntoIter = IterOpComplete;
+        type Item = OpSuccess;
+
+        fn into_iter(self) -> Self::IntoIter {
+            IterOpComplete::new(self.0)
+        }
+    }
+
+    impl IterOpComplete {
+        pub(super) fn new(mut vs: Vec<OpSuccess>) -> Self {
+            vs.sort_by_key(|v| -v.version);
+            Self(vs)
+        }
+    }
+
+    impl Iterator for IterOpComplete {
         type Item = OpSuccess;
 
         fn next(&mut self) -> Option<Self::Item> {

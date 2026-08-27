@@ -2,7 +2,7 @@
 //!
 //! This simple example shows how a custom context can be used to inject logic
 //! into a migration at runtime.
-use tern::error::{ErrorKind, MigrationError, TernResult};
+use tern::error::{ErrorKind, MigrationError};
 
 mod migrations;
 pub use migrations::SimpleExample;

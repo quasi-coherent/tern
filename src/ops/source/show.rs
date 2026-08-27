@@ -1,8 +1,7 @@
 use chrono::Utc;
-use tern_core::error::TernError;
-
 use tern_core::context::MigrationContext;
-use tern_core::migration::{Migration, MigrationData};
+use tern_core::error::TernError;
+use tern_core::migration::{Migration as _, MigrationData};
 use tern_core::ops::Operation;
 use tern_core::ops::migration::{RenderQuery, StaticQuery};
 
@@ -56,11 +55,8 @@ pub struct ShowInput<Ctx> {
 
 impl<Ctx: MigrationContext> ShowInput<Ctx> {
     /// New `ShowInput`.
-    pub fn new<I>(iter: I, args: ShowArgs) -> Self
-    where
-        I: Iterator<Item: Migration<Ctx = Ctx> + 'static>,
-    {
-        Self { set: iter.collect(), args }
+    pub fn new(set: MigrationBoxSet<Ctx>, args: ShowArgs) -> Self {
+        Self { set, args }
     }
 }
 

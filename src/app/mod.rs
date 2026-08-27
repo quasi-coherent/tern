@@ -5,6 +5,7 @@ use tern_core::error::TernResult;
 use tern_core::migration::Migration;
 use tern_core::ops::Operation as _;
 
+use crate::migration::MigrationBoxSet;
 use crate::ops::{self, OpResult};
 
 #[cfg(feature = "cli")]
@@ -12,9 +13,6 @@ pub mod cli;
 
 /// `TernApp` combines a `MigrationContext` and an associated migration set.
 pub trait TernApp: MigrationContext + Sized {
-    /// The type of value that can construct this app.
-    type Options: AppOptions<App = Self>;
-
     /// Migration set for this app.
     ///
     /// This is expressed as a `DoubleEndedIterator` whose item type implements
@@ -28,15 +26,25 @@ pub trait TernApp: MigrationContext + Sized {
     type Set: DoubleEndedIterator<Item: Migration<Ctx = Self> + 'static>;
 
     /// Return the [`MigrationSet`] for this app.
-    fn new(&mut self) -> Self::Set;
+    fn try_new_migration_set(&mut self) -> TernResult<Self::Set>;
+
+    /// Return the dynamically-typed [`MigrationBoxSet`] derived from the app's
+    /// migration set, [`TernApp::Set`].
+    fn try_new_boxed_set(&mut self) -> TernResult<MigrationBoxSet<Self>>
+    where
+        <Self::Set as Iterator>::Item: 'static,
+    {
+        let set = self.try_new_migration_set()?;
+        MigrationBoxSet::try_from_iter(set)
+    }
 }
 
 /// Options to create a `TernApp`.
 ///
 /// This is simply any custom configuration for the context plus its executor.
 pub trait AppOptions {
-    /// The [`TernApp`] that these options build.
-    type App: TernApp<Options = Self>;
+    /// A [`TernApp`] that these options build.
+    type App: TernApp;
 
     /// Initialize the `TernApp`.
     fn initialize(
@@ -46,7 +54,7 @@ pub trait AppOptions {
 }
 
 /// Tern app container.
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Tern<T>(pub(crate) T);
 
 impl<T> Tern<T>
@@ -62,8 +70,11 @@ where
         Tern(inner)
     }
 
-    /// Use `AppOptions` to initialize an app.
-    pub async fn init(conn: &ConnStr, opts: T::Options) -> TernResult<Tern<T>> {
+    /// Use `AppOptions` for `T` to initialize.
+    pub async fn init<C>(conn: &ConnStr, opts: C) -> TernResult<Tern<T>>
+    where
+        C: AppOptions<App = T>,
+    {
         let exec = <T as MigrationContext>::Executor::connect(conn).await?;
         let this = opts.initialize(exec).await?;
         Ok(Self(this))
@@ -71,25 +82,29 @@ where
 
     /// `List` operation.
     pub async fn list(&mut self, args: ops::source::ListArgs) -> OpResult {
-        let input = ops::source::ListInput::new(self.0.new(), args);
+        let set = self.0.try_new_boxed_set()?;
+        let input = ops::source::ListInput::new(set, args);
         ops::source::List::new(&mut self.0).exec(input).await
     }
 
     /// `Show` operation.
     pub async fn show(&mut self, args: ops::source::ShowArgs) -> OpResult {
-        let input = ops::source::ShowInput::new(self.0.new(), args);
+        let set = self.0.try_new_boxed_set()?;
+        let input = ops::source::ShowInput::new(set, args);
         ops::source::Show::new(&mut self.0).exec(input).await
     }
 
     /// `Apply` operation.
     pub async fn apply(&mut self, args: ops::migrate::ApplyArgs) -> OpResult {
-        let input = ops::migrate::ApplyInput::new(self.0.new(), args);
+        let set = self.0.try_new_boxed_set()?;
+        let input = ops::migrate::ApplyInput::new(set, args);
         ops::migrate::Apply::new(&mut self.0).exec(input).await
     }
 
     /// `Revert` operation.
     pub async fn revert(&mut self, args: ops::migrate::RevertArgs) -> OpResult {
-        let input = ops::migrate::RevertInput::new(self.0.new(), args);
+        let set = self.0.try_new_boxed_set()?;
+        let input = ops::migrate::RevertInput::new(set, args);
         ops::migrate::Revert::new(&mut self.0).exec(input).await
     }
 

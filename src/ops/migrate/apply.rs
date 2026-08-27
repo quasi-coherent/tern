@@ -1,5 +1,4 @@
 use tern_core::context::{MigrationContext, MigrationExecutor as _};
-use tern_core::migration::Migration;
 use tern_core::migration::iter::MigrationSetExt as _;
 use tern_core::ops::Operation;
 use tern_core::ops::migration::ApplyOne;
@@ -108,11 +107,8 @@ pub struct ApplyInput<Ctx> {
 
 impl<Ctx: MigrationContext> ApplyInput<Ctx> {
     /// New `Apply` input.
-    pub fn new<I>(iter: I, args: ApplyArgs) -> Self
-    where
-        I: Iterator<Item: Migration<Ctx = Ctx> + 'static>,
-    {
-        Self { set: iter.collect(), args }
+    pub fn new(set: MigrationBoxSet<Ctx>, args: ApplyArgs) -> Self {
+        Self { set, args }
     }
 }
 
