@@ -9,3 +9,14 @@ services:
       POSTGRES_DATABASE: "tern"
     ports:
       - "5433:5432"
+  mysql:
+    image: "mysql:8"
+    # Let the non-SUPER test user create triggers while binary logging is on.
+    command: "--log-bin-trust-function-creators=1"
+    environment:
+      MYSQL_USER: "tern"
+      MYSQL_PASSWORD: "password"
+      MYSQL_DATABASE: "tern"
+      MYSQL_ROOT_PASSWORD: "password"
+    ports:
+      - "3307:3306"

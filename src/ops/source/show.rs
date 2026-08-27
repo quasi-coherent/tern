@@ -1,10 +1,12 @@
 use chrono::Utc;
 use tern_core::context::MigrationContext;
-use tern_core::error::{TernError, TernResult};
-use tern_core::migration::iter::UpMigrationSet;
-use tern_core::migration::{Migration, MigrationData, UpMigration};
-use tern_core::ops::MigrationOp;
+use tern_core::error::TernError;
+use tern_core::migration::{Migration as _, MigrationData};
+use tern_core::ops::Operation;
 use tern_core::ops::migration::{RenderQuery, StaticQuery};
+
+use crate::migration::MigrationBoxSet;
+use crate::ops::result::{CollectOp, OpResult};
 
 /// Arguments to the `Show` operation.
 #[derive(Clone, Copy, Debug, Default)]
@@ -43,24 +45,17 @@ impl ShowArgs {
     pub fn get_render_query(&self) -> bool {
         self.render_query
     }
-
-    fn find_version<Ctx: MigrationContext>(
-        &self,
-        m: &UpMigration<Ctx>,
-    ) -> bool {
-        self.version == m.version()
-    }
 }
 
 /// Input to the `Show` operation.
 pub struct ShowInput<Ctx> {
-    set: UpMigrationSet<Ctx>,
+    set: MigrationBoxSet<Ctx>,
     args: ShowArgs,
 }
 
-impl<Ctx> ShowInput<Ctx> {
+impl<Ctx: MigrationContext> ShowInput<Ctx> {
     /// New `ShowInput`.
-    pub fn new(set: UpMigrationSet<Ctx>, args: ShowArgs) -> Self {
+    pub fn new(set: MigrationBoxSet<Ctx>, args: ShowArgs) -> Self {
         Self { set, args }
     }
 }
@@ -76,28 +71,38 @@ impl<'a, Ctx: MigrationContext> Show<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<ShowInput<Ctx>> for Show<'_, Ctx> {
-    type Output = TernResult<MigrationData>;
+impl<Ctx: MigrationContext> Operation<ShowInput<Ctx>> for Show<'_, Ctx> {
+    type Output = OpResult;
 
     async fn exec(self, input: ShowInput<Ctx>) -> Self::Output {
-        let args = input.args;
-        let version = args.get_version();
+        let start = Utc::now();
+        let ShowInput { set, args } = input;
 
-        let Some(m) = input.set.into_iter().find(|m| !args.find_version(m))
-        else {
+        let mut ms =
+            set.into_iter().skip_while(|m| m.version() != args.version);
+        let Some(migration) = ms.next() else {
             return Err(TernError::Invalid(format!(
-                "migration V{version} not found"
+                "missing version {}",
+                args.version
             )))?;
         };
 
-        let id = m.migration_id();
-        let start = Utc::now();
+        let v = migration.version();
+        let descr = migration.description();
+        let mut results = CollectOp::new();
 
-        if args.get_render_query() {
-            RenderQuery::new(self.0).exec(&m).await
+        let res = if args.get_render_query() {
+            RenderQuery::new(self.0).exec(&migration).await
         } else {
-            StaticQuery::new().exec(&m).await
+            Ok(StaticQuery::new().exec(&migration).await)
         }
-        .map(|q| MigrationData::new(id, &q, start))
+        .map(|q| {
+            let mut data = MigrationData::new(v, descr, &q);
+            data.finished(start);
+            data
+        });
+        results.try_push(res)?;
+
+        results.ok()
     }
 }

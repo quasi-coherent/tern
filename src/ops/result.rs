@@ -45,16 +45,6 @@ impl CollectOp {
 #[derive(Clone, Debug, Default)]
 pub struct OpComplete(Vec<OpSuccess>);
 
-impl IntoIterator for OpComplete {
-    type IntoIter = iter::IterOp;
-    type Item = OpSuccess;
-
-    fn into_iter(mut self) -> Self::IntoIter {
-        self.0.sort_by_key(|v| -v.version);
-        iter::IterOp(self.0)
-    }
-}
-
 impl FromIterator<OpSuccess> for OpComplete {
     fn from_iter<T: IntoIterator<Item = OpSuccess>>(iter: T) -> Self {
         Self(iter.into_iter().collect())
@@ -69,7 +59,23 @@ impl From<OpSuccess> for OpComplete {
 
 impl Display for OpComplete {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.iter().try_for_each(|v| writeln!(f, "{v}"))
+        // An empty result is silent.
+        if self.0.is_empty() {
+            return Ok(());
+        }
+        let total = self.0.iter().map(|v| v.duration).sum::<Duration>();
+        let migrations = match self.0.len() {
+            1 => "1 migration".to_string(),
+            n => format!("{n} migrations"),
+        };
+        writeln!(
+            f,
+            "{}",
+            Style::new()
+                .bold()
+                .apply_to(format!("{migrations} in {total:.2?}"))
+        )?;
+        self.0.iter().try_for_each(|v| write!(f, "{v}"))
     }
 }
 
@@ -107,8 +113,8 @@ impl From<&MigrationData> for OpSuccess {
     fn from(value: &MigrationData) -> Self {
         Self {
             version: value.version(),
-            description: value.description(),
-            query: value.content(),
+            description: value.description().into(),
+            query: value.content().into(),
             end_time: value.applied_at(),
             duration: value
                 .duration_millis()
@@ -123,8 +129,8 @@ impl From<MigrationData> for OpSuccess {
     fn from(value: MigrationData) -> Self {
         Self {
             version: value.version(),
-            description: value.description(),
-            query: value.content(),
+            description: value.description().into(),
+            query: value.content().into(),
             end_time: value.applied_at(),
             duration: value
                 .duration_millis()
@@ -137,20 +143,25 @@ impl From<MigrationData> for OpSuccess {
 
 impl Display for OpSuccess {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let k = Style::new().green().bold().underlined();
-        let v = Style::new().white();
+        let dim = Style::new().dim();
         writeln!(
             f,
-            "{}",
-            k.apply_to(format!("V{}/{}", self.version, &self.description))
+            "{} {} {}",
+            Style::new().green().bold().apply_to("✓"),
+            Style::new().bold().apply_to(format!("V{}", self.version)),
+            self.description,
         )?;
-        writeln!(f, "{}", k.apply_to(format!("V{}/query", self.version)))?;
-        writeln!(f, "{}", v.apply_to(&self.query))?;
+        self.query
+            .lines()
+            .try_for_each(|l| writeln!(f, "    {}", dim.apply_to(l)))?;
         writeln!(
             f,
-            "Finished at {} in {}s",
-            k.apply_to(self.end_time),
-            k.apply_to(self.duration.as_secs_f64())
+            "    {}",
+            dim.apply_to(format!(
+                "finished {} · {:.1?}",
+                self.end_time.format("%Y-%m-%d %H:%M:%S UTC"),
+                self.duration
+            ))
         )
     }
 }
@@ -182,7 +193,12 @@ impl OpError {
 impl Display for OpError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.partial.iter().try_for_each(|v| write!(f, "{}", v.truncated()))?;
-        writeln!(f, "{}", console::style(&self.error).red())
+        writeln!(
+            f,
+            "{} {}",
+            Style::new().red().bold().apply_to("✗"),
+            Style::new().red().apply_to(&self.error)
+        )
     }
 }
 
@@ -202,18 +218,34 @@ impl MigrationError for OpError {
     }
 }
 
-#[doc(hidden)]
-pub mod iter {
-
+/// Iterator from a successful operation.
+pub mod op_complete {
     use super::*;
 
-    /// An `Iterator` just in case that's useful.n
-    pub struct IterOp(pub(super) Vec<OpSuccess>);
+    /// Iterator of `OpSuccess` values.
+    pub struct IterOpComplete(Vec<OpSuccess>);
 
-    impl Iterator for IterOp {
+    impl IntoIterator for OpComplete {
+        type IntoIter = IterOpComplete;
+        type Item = OpSuccess;
+
+        fn into_iter(self) -> Self::IntoIter {
+            IterOpComplete::new(self.0)
+        }
+    }
+
+    impl IterOpComplete {
+        pub(super) fn new(mut vs: Vec<OpSuccess>) -> Self {
+            vs.sort_by_key(|v| -v.version);
+            Self(vs)
+        }
+    }
+
+    impl Iterator for IterOpComplete {
         type Item = OpSuccess;
 
         fn next(&mut self) -> Option<Self::Item> {
+            // IntoIterator sorted in reverse.
             self.0.pop()
         }
     }

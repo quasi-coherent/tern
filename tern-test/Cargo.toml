@@ -1,0 +1,34 @@
+[package]
+name = "tern-test"
+description = "Testing harness support for `tern` migration sets."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "tern_test"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+sqlx_mysql = ["dep:sqlx", "sqlx/mysql", "tern-executor/sqlx_mysql"]
+sqlx_postgres = ["dep:sqlx", "sqlx/postgres", "tern-executor/sqlx_postgres"]
+sqlx_sqlite = ["dep:sqlx", "sqlx/sqlite", "tern-executor/sqlx_sqlite"]
+
+[dependencies]
+chrono = { workspace = true }
+console = { workspace = true }
+futures-core = { workspace = true }
+log = { workspace = true }
+sqlx = { workspace = true, optional = true }
+tern-core = { workspace = true }
+tern-executor = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }

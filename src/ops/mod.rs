@@ -3,7 +3,7 @@
 //! This module provides the main commands: `history`, `migrate`, and `source`.
 //!
 //! Each command has subcommands; see the documentation.
-pub use tern_core::ops::MigrationOp;
+pub use tern_core::ops::Operation;
 
 pub mod history;
 pub mod migrate;

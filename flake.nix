@@ -22,13 +22,10 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs-lib";
     };
-    limavm-nix = {
-      url = "github:quasi-coherent/limavm.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-parts.follows = "flake-parts";
-    };
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
     nixpkgs-lib.follows = "nixpkgs";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   nixConfig = {

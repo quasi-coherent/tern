@@ -1,10 +1,10 @@
 use chrono::Utc;
-use tern_core::context::MigrationContext;
-use tern_core::migration::iter::UpMigrationSet;
-use tern_core::migration::{Migration, MigrationData, UpMigration};
-use tern_core::ops::MigrationOp;
+use tern_core::context::{MigrationContext, MigrationExecutor as _};
+use tern_core::migration::{Migration as _, MigrationData};
+use tern_core::ops::Operation;
 use tern_core::ops::migration::StaticQuery;
 
+use crate::migration::{MigrationBox, MigrationBoxSet};
 use crate::ops::result::{CollectOp, OpResult};
 
 /// Arguments to the `List` operation.
@@ -61,7 +61,7 @@ impl ListArgs {
     fn in_range<Ctx: MigrationContext>(
         &self,
         latest: Option<i64>,
-        m: &UpMigration<Ctx>,
+        m: &MigrationBox<Ctx>,
     ) -> bool {
         let version = m.version();
         if self.get_diff() {
@@ -75,13 +75,13 @@ impl ListArgs {
 
 /// Input to the `List` operation.
 pub struct ListInput<Ctx> {
-    set: UpMigrationSet<Ctx>,
+    set: MigrationBoxSet<Ctx>,
     args: ListArgs,
 }
 
-impl<Ctx> ListInput<Ctx> {
+impl<Ctx: MigrationContext> ListInput<Ctx> {
     /// New `ListInput`.
-    pub fn new(set: UpMigrationSet<Ctx>, args: ListArgs) -> Self {
+    pub fn new(set: MigrationBoxSet<Ctx>, args: ListArgs) -> Self {
         Self { set, args }
     }
 }
@@ -97,25 +97,33 @@ impl<'a, Ctx: MigrationContext> List<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<ListInput<Ctx>> for List<'_, Ctx> {
+impl<Ctx: MigrationContext + 'static> Operation<ListInput<Ctx>>
+    for List<'_, Ctx>
+{
     type Output = OpResult;
 
     async fn exec(self, input: ListInput<Ctx>) -> Self::Output {
-        let latest = self.0.latest_applied().await?.map(|data| data.version());
-        let args = input.args;
-        let iter = input.set.into_iter().filter(|m| args.in_range(latest, m));
+        let history = self.0.history_table();
+        let latest = self
+            .0
+            .executor_mut()
+            .current_version(history)
+            .await?
+            .map(|data| data.version());
 
+        let ListInput { set, args } = input;
         let mut results = CollectOp::new();
 
-        for m in iter {
-            let id = m.migration_id();
-            let start = Utc::now();
-            let result = StaticQuery::new()
-                .exec(&m)
-                .await
-                .map(|q| MigrationData::new(id, &q, start));
-
-            results.try_push(result)?;
+        for migration in set.into_iter() {
+            if args.in_range(latest, &migration) {
+                let v = migration.version();
+                let descr = migration.description();
+                let start = Utc::now();
+                let q = StaticQuery::new().exec(&migration).await;
+                let mut res = MigrationData::new(v, descr, &q);
+                res.finished(start);
+                results.try_push(Ok(res))?;
+            }
         }
 
         results.ok()

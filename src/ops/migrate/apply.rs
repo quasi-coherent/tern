@@ -1,9 +1,9 @@
-use tern_core::context::MigrationContext;
-use tern_core::migration::iter::UpMigrationSet;
-use tern_core::migration::{Migration, UpMigration};
-use tern_core::ops::MigrationOp;
-use tern_core::ops::migration::Up;
+use tern_core::context::{MigrationContext, MigrationExecutor as _};
+use tern_core::migration::iter::MigrationSetExt as _;
+use tern_core::ops::Operation;
+use tern_core::ops::migration::ApplyOne;
 
+use crate::migration::MigrationBoxSet;
 use crate::ops::result::{CollectOp, OpResult};
 
 /// Arguments for the `Apply` operation.
@@ -85,50 +85,29 @@ impl ApplyArgs {
         self.dryrun
     }
 
-    // Filter on `UpMigrationSet.into_iter()` to select candidate migrations.
-    //
-    // For a version v, the lower bound `latest < v` is always true and
-    //  `v <= self.to` should hold.
-    //
-    // But if `self.to.is_none()` this collapses to `v == latest + 1` by default
-    // behavior.  Unless `--all` is found, in which case `v` is not bounded
-    // above.
-    fn filter<Ctx: MigrationContext>(
-        &self,
-        latest: i64,
-        m: &UpMigration<Ctx>,
-    ) -> bool {
-        let v = m.version();
-        latest < v
-            && self
-                .get_to()
-                .map(|t| v <= t)
-                .unwrap_or(self.get_all() || v == latest + 1)
-    }
-
-    // Returns the correct `Up` (with dryrun, soft apply).
-    fn new_up<'a, Ctx>(&self, ctx: &'a mut Ctx) -> Up<'a, Ctx> {
-        let up = if self.get_soft_apply() {
-            Up::new_soft_apply(ctx)
+    // Returns the correct `ApplyOne` (with dryrun, soft apply).
+    fn new_apply_one<'a, Ctx>(&self, ctx: &'a mut Ctx) -> ApplyOne<'a, Ctx> {
+        let apply = if self.get_soft_apply() {
+            ApplyOne::new(ctx).soft_apply()
         } else {
-            Up::new_apply(ctx)
+            ApplyOne::new(ctx)
         };
         if self.get_dryrun() {
-            return up.dryrun();
+            return apply.dryrun();
         }
-        up
+        apply
     }
 }
 
 /// Input to the `Apply` operation.
 pub struct ApplyInput<Ctx> {
-    set: UpMigrationSet<Ctx>,
+    set: MigrationBoxSet<Ctx>,
     args: ApplyArgs,
 }
 
-impl<Ctx> ApplyInput<Ctx> {
+impl<Ctx: MigrationContext> ApplyInput<Ctx> {
     /// New `Apply` input.
-    pub fn new(set: UpMigrationSet<Ctx>, args: ApplyArgs) -> Self {
+    pub fn new(set: MigrationBoxSet<Ctx>, args: ApplyArgs) -> Self {
         Self { set, args }
     }
 }
@@ -143,27 +122,33 @@ impl<'a, Ctx: MigrationContext> Apply<'a, Ctx> {
     }
 }
 
-impl<Ctx: MigrationContext> MigrationOp<ApplyInput<Ctx>> for Apply<'_, Ctx> {
+impl<Ctx: MigrationContext + 'static> Operation<ApplyInput<Ctx>>
+    for Apply<'_, Ctx>
+{
     type Output = OpResult;
 
     async fn exec(self, input: ApplyInput<Ctx>) -> Self::Output {
+        let history = self.0.history_table();
         // If there have been no migrations applied, `latest` will come back
         // `None` here, and then we set it to 0, which is the right thing to do
         // given how we filter with `ApplyArgs::filter` above.
         let latest = self
             .0
-            .latest_applied()
+            .executor_mut()
+            .current_version(history)
             .await?
-            .map(|data| data.version())
-            .unwrap_or_default();
-        let args = input.args;
-        let iter = input.set.into_iter().filter(|m| args.filter(latest, m));
+            .map(|data| data.version());
+
+        let ApplyInput { set, args } = input;
+        let migs = set.into_iter().range(latest, args.get_to());
         let mut results = CollectOp::new();
-        for m in iter {
-            let op = args.new_up(self.0);
-            let result = op.exec(&m).await;
+
+        for migration in migs {
+            let op = args.new_apply_one(self.0);
+            let result = op.exec(&migration).await;
             results.try_push(result)?;
         }
+
         results.ok()
     }
 }

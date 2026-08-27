@@ -1,0 +1,33 @@
+[package]
+name = "tern-executor"
+description = "Integrations for external database client crates."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "tern_executor"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["sqlx_mysql", "sqlx_postgres", "sqlx_sqlite"]
+
+_sqlx = ["dep:sqlx", "tern-core/sqlx"]
+sqlx_mysql = ["_sqlx", "sqlx/mysql"]
+sqlx_postgres = ["_sqlx", "sqlx/postgres"]
+sqlx_sqlite = ["_sqlx", "sqlx/sqlite"]
+
+[dependencies]
+chrono = { workspace = true }
+futures-core = { workspace = true }
+log = { workspace = true }
+regex = { workspace = true }
+sqlx = { workspace = true, optional = true }
+tern-core = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
