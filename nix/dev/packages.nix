@@ -8,47 +8,34 @@ let
       ...
     }:
     let
-      root = ../.;
       stableToolchain = inputs'.fenix.packages.stable.toolchain;
       nightlyToolchain = inputs'.fenix.packages.latest.toolchain;
       crane = (inputs.crane.mkLib pkgs).overrideToolchain stableToolchain;
       craneNightly = (inputs.crane.mkLib pkgs).overrideToolchain nightlyToolchain;
-      inherit (crane.crateNameFromCargoToml { cargoToml = ../Cargo.toml; }) pname version;
 
-      cargoTomlAndLock = crane.fileset.cargoTomlAndLock root;
-      src = crane.fileset.commonCargoSources root;
+      root = ../../.;
+      src = crane.cleanCargoSource root;
 
       # Shared arguments with the full workspace fileset.
       baseArgs = {
-        inherit pname version;
-        src = lib.fileset.toSource {
-          inherit root;
-          fileset = src;
-        };
-        strictDeps = true;
-        cargoBuildExtraArgs = "--all-features --workspace";
-      };
-      # Build only dependencies (fileset is just Cargo.toml/Cargo.lock).
-      cargoArtifacts = crane.buildDepsOnly {
-        inherit (baseArgs) pname version cargoBuildExtraArgs;
-        src = lib.fileset.toSource {
-          inherit root;
-          fileset = cargoTomlAndLock;
-        };
+        inherit src;
         strictDeps = true;
       };
+      cargoArtifacts = crane.buildDepsOnly baseArgs;
+
       # Tests and examples require .sql files to build.
-      testSrc =
-        lib.fileset.toSource {
-          inherit root;
-          fileset = lib.fileset.unions [
-            src
-            (lib.fileset.fileFilter (f: f.hasExt "sql") root)
-          ];
-        };
+      testSrc = lib.fileset.toSource {
+        inherit root;
+        fileset = lib.fileset.unions [
+          (crane.fileset.commonCargoSources root)
+          (lib.fileset.fileFilter (f: f.hasExt "sql") root)
+        ];
+      };
 
       args = baseArgs // {
         inherit cargoArtifacts;
+        inherit (crane.crateNameFromCargoToml { cargoToml = ../../Cargo.toml; }) pname version;
+        cargoBuildExtraArgs = "--all-features --workspace";
       };
 
       tern = crane.buildPackage args;
@@ -63,7 +50,6 @@ let
           // {
             cargoDocExtraArgs = "--no-deps";
             RUSTDOCFLAGS = "--cfg docsrs";
-            doCheck = false;
           }
         );
 
@@ -72,7 +58,6 @@ let
           // {
             src = testSrc;
             cargoBuildExtraArgs = "--examples";
-            doCheck = false;
           }
         );
       };
@@ -82,7 +67,7 @@ let
           args
           // {
             src = testSrc;
-            doInstallCargoArtifacts = true;
+            doInstallCargoArtifacts = false;
           }
         );
 
@@ -91,7 +76,7 @@ let
           // {
             src = testSrc;
             cargoClippyExtraArgs = "--all-targets --keep-going -- -Dwarnings";
-            doInstallCargoArtifacts = true;
+            doInstallCargoArtifacts = false;
           }
         );
       };
