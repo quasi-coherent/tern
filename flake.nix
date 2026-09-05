@@ -13,7 +13,6 @@
 
   inputs = {
     crane.url = "github:ipetkov/crane";
-    den.url = "github:denful/den";
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";

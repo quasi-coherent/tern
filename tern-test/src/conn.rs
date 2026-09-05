@@ -14,6 +14,7 @@ pub struct TestConn {
     base_conn: ConnStr,
     test_conn: ConnStr,
     testdb_name: String,
+    preserve_db: bool,
 }
 
 impl TestConn {
@@ -27,9 +28,13 @@ impl TestConn {
             let path = std::env::temp_dir().join(format!("{testdb_name}.db"));
             let name = path.display().to_string();
             let test_conn = format!("sqlite://{name}").into();
-            return Ok(Self { base_conn, test_conn, testdb_name });
+            return Ok(Self {
+                base_conn,
+                test_conn,
+                testdb_name,
+                preserve_db: false,
+            });
         }
-
         let mut test_url = base_url.clone();
         test_url
             .path_segments_mut()
@@ -38,7 +43,16 @@ impl TestConn {
             .push(&testdb_name);
         let test_conn = ConnStr::new(test_url.as_str());
 
-        Ok(Self { base_conn, test_conn, testdb_name })
+        Ok(Self { base_conn, test_conn, testdb_name, preserve_db: false })
+    }
+
+    /// Retain the database after the test suite has ran.
+    ///
+    /// By default the database where the test run took place is dropped at the
+    /// end.
+    pub fn preserve_db(mut self) -> Self {
+        self.preserve_db = true;
+        self
     }
 
     /// Return the initial DB connection.
@@ -56,6 +70,11 @@ impl TestConn {
         &self.testdb_name
     }
 
+    /// Whether the database will persist past the test suite.
+    pub fn preserved(&self) -> bool {
+        self.preserve_db
+    }
+
     /// Initialize the [`TestDatabase`] executor `T`.
     pub async fn test_connect<T: TestDatabase>(&self) -> TernResult<T> {
         let mut exec = T::connect(&self.base_conn).await?;
@@ -70,6 +89,7 @@ impl Debug for TestConn {
             .field("base_conn", &self.base_conn)
             .field("test_conn", &self.test_conn)
             .field("testdb_name", &self.testdb_name)
+            .field("preserve_db", &self.preserve_db)
             .finish()
     }
 }

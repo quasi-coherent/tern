@@ -75,7 +75,6 @@ sqlx_postgres = [
 ]
 sqlx_sqlite = ["_sqlx", "tern-executor/sqlx_sqlite", "tern-test?/sqlx_sqlite"]
 sqlx_all = ["sqlx_mysql", "sqlx_postgres", "sqlx_sqlite"]
-
 testing = ["dep:tern-test"]
 
 [dependencies]

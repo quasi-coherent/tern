@@ -46,7 +46,7 @@ pub trait AppOptions {
     /// A [`TernApp`] that these options build.
     type App: TernApp;
 
-    /// Initialize the `TernApp`.
+    /// Initialize the [`TernApp`].
     fn initialize(
         self,
         exec: <Self::App as MigrationContext>::Executor,
@@ -62,7 +62,7 @@ where
     T: TernApp + 'static,
     <T::Set as Iterator>::Item: Migration<Ctx = T> + 'static,
 {
-    /// New `Tern` app.
+    /// New `Tern` app runner.
     pub fn new(inner: T) -> Tern<T>
     where
         T: TernApp,
@@ -70,7 +70,7 @@ where
         Tern(inner)
     }
 
-    /// Use `AppOptions` for `T` to initialize.
+    /// Initialize from values for an [`AppOptions`] for `T`.
     pub async fn init<C>(conn: &ConnStr, opts: C) -> TernResult<Tern<T>>
     where
         C: AppOptions<App = T>,

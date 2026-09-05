@@ -2,7 +2,6 @@
 //!
 //! Runtime support for testing `tern` migration sets.  This crate is not
 //! intended to be used directly.
-#![cfg_attr(docsrs, feature(doc_cfg))]
 use tern_core::context::MigrationExecutor;
 use tern_core::error::TernResult;
 

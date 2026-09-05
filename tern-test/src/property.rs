@@ -8,11 +8,12 @@ use tern_core::error::TernResult;
 pub trait Property<Ctx: MigrationContext> {
     /// Evaluate a condition with the migration context before applying this
     /// migration.
-    fn before(&self, ctx: &mut Ctx) -> impl Future<Output = TernResult<()>>;
+    fn pre_check(&self, ctx: &mut Ctx) -> impl Future<Output = TernResult<()>>;
 
     /// Evaluate a condition with the migration context after applying this
     /// migration.
-    fn after(&self, ctx: &mut Ctx) -> impl Future<Output = TernResult<()>>;
+    fn post_check(&self, ctx: &mut Ctx)
+    -> impl Future<Output = TernResult<()>>;
 }
 
 /// Dynamically-typed `Property`.
@@ -26,12 +27,12 @@ impl<Ctx: MigrationContext> Prop<Ctx> {
 }
 
 impl<Ctx: MigrationContext> Property<Ctx> for Prop<Ctx> {
-    async fn before(&self, ctx: &mut Ctx) -> TernResult<()> {
-        self.0.before_box(ctx).await
+    async fn pre_check(&self, ctx: &mut Ctx) -> TernResult<()> {
+        self.0.pre_check_box(ctx).await
     }
 
-    async fn after(&self, ctx: &mut Ctx) -> TernResult<()> {
-        self.0.after_box(ctx).await
+    async fn post_check(&self, ctx: &mut Ctx) -> TernResult<()> {
+        self.0.post_check_box(ctx).await
     }
 }
 
@@ -76,29 +77,29 @@ impl<Ctx: MigrationContext> PropertySet<Ctx> for Properties<Ctx> {
 
 // Object-safe version.
 trait BoxedProperty<Ctx: MigrationContext> {
-    fn before_box<'a>(
+    fn pre_check_box<'a>(
         &'a self,
         ctx: &'a mut Ctx,
     ) -> LocalBoxFuture<'a, TernResult<()>>;
 
-    fn after_box<'a>(
+    fn post_check_box<'a>(
         &'a self,
         ctx: &'a mut Ctx,
     ) -> LocalBoxFuture<'a, TernResult<()>>;
 }
 
 impl<Ctx: MigrationContext, P: Property<Ctx>> BoxedProperty<Ctx> for P {
-    fn before_box<'a>(
+    fn pre_check_box<'a>(
         &'a self,
         ctx: &'a mut Ctx,
     ) -> LocalBoxFuture<'a, TernResult<()>> {
-        Box::pin(self.before(ctx))
+        Box::pin(self.pre_check(ctx))
     }
 
-    fn after_box<'a>(
+    fn post_check_box<'a>(
         &'a self,
         ctx: &'a mut Ctx,
     ) -> LocalBoxFuture<'a, TernResult<()>> {
-        Box::pin(self.after(ctx))
+        Box::pin(self.post_check(ctx))
     }
 }
